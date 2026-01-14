@@ -131,7 +131,12 @@ export default function Index() {
   const [bitTorque, setBitTorque] = useState<string>('5.0');
   const [bitType, setBitType] = useState<string>('PDC');
   const [calculations, setCalculations] = useState<Calculation[]>([]);
-  const [calculationType, setCalculationType] = useState<'pressure' | 'drilling' | 'running' | 'hydraulics'>('pressure');
+  const [enabledCalculations, setEnabledCalculations] = useState({
+    pressure: true,
+    drilling: false,
+    running: false,
+    hydraulics: false
+  });
   const [showCharts, setShowCharts] = useState(false);
   
   const [nozzles, setNozzles] = useState<Nozzle[]>([]);
@@ -473,16 +478,16 @@ export default function Index() {
     const frCoeffCased = parseFloat(frictionCased);
     const maxT = parseFloat(maxTorque);
     
-    if (calculationType === 'drilling' && d && r && bd) {
+    if (enabledCalculations.drilling && d && r && bd) {
       const bt = parseFloat(bitTorque);
       drilling = calculateDrillingParams(od, wt, selectedGrade, d, r, bd, axLoad, mw, frCoeff, maxT, bt);
     }
     
-    if (calculationType === 'running' && d && mw && wd) {
+    if (enabledCalculations.running && d && mw && wd) {
       running = calculateRunningParams(od, d, mw, w, wd, frCoeffCased);
     }
 
-    if (calculationType === 'hydraulics' && d && fr && mw && visc && wd) {
+    if (enabledCalculations.hydraulics && d && fr && mw && visc && wd) {
       hydraulics = calculateHydraulics(od, id, d, fr, mw, visc, wd);
       
       if (nozzles.length > 0) {
@@ -750,46 +755,162 @@ export default function Index() {
 
                   <Separator />
 
-                  <div className="space-y-4">
-                    <Label className="text-sm font-semibold">Тип расчета:</Label>
-                    <div className="grid grid-cols-4 gap-2">
+                  <div className="space-y-4 p-4 bg-gradient-to-br from-primary/5 to-accent/5 rounded-lg border-2 border-primary/20">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-sm font-semibold flex items-center gap-2">
+                        <Icon name="CheckSquare" size={18} />
+                        Выберите типы расчетов:
+                      </Label>
                       <Button
-                        variant={calculationType === 'pressure' ? 'default' : 'outline'}
-                        onClick={() => setCalculationType('pressure')}
-                        className="flex flex-col h-auto py-3"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setEnabledCalculations({
+                          pressure: true,
+                          drilling: true,
+                          running: true,
+                          hydraulics: true
+                        })}
+                        className="text-xs h-7"
                       >
-                        <Icon name="Gauge" size={20} className="mb-1" />
-                        <span className="text-xs">Прочность</span>
+                        Все типы
                       </Button>
-                      <Button
-                        variant={calculationType === 'drilling' ? 'default' : 'outline'}
-                        onClick={() => setCalculationType('drilling')}
-                        className="flex flex-col h-auto py-3"
+                    </div>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                      <div
+                        onClick={() => setEnabledCalculations(prev => ({ ...prev, pressure: !prev.pressure }))}
+                        className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${
+                          enabledCalculations.pressure
+                            ? 'bg-primary text-primary-foreground border-primary shadow-lg'
+                            : 'bg-background hover:bg-muted border-muted-foreground/20'
+                        }`}
                       >
-                        <Icon name="Drill" size={20} className="mb-1" />
-                        <span className="text-xs">Бурение</span>
-                      </Button>
-                      <Button
-                        variant={calculationType === 'running' ? 'default' : 'outline'}
-                        onClick={() => setCalculationType('running')}
-                        className="flex flex-col h-auto py-3"
+                        <div className="flex flex-col items-center gap-2">
+                          <Icon name="Gauge" size={24} />
+                          <span className="text-sm font-semibold">Прочность</span>
+                          <div className="flex items-center gap-1 text-xs">
+                            {enabledCalculations.pressure ? (
+                              <><Icon name="CheckCircle" size={14} /> Включен</>
+                            ) : (
+                              <><Icon name="Circle" size={14} /> Выключен</>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      <div
+                        onClick={() => setEnabledCalculations(prev => ({ ...prev, drilling: !prev.drilling }))}
+                        className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${
+                          enabledCalculations.drilling
+                            ? 'bg-primary text-primary-foreground border-primary shadow-lg'
+                            : 'bg-background hover:bg-muted border-muted-foreground/20'
+                        }`}
                       >
-                        <Icon name="MoveDown" size={20} className="mb-1" />
-                        <span className="text-xs">Спуск</span>
-                      </Button>
-                      <Button
-                        variant={calculationType === 'hydraulics' ? 'default' : 'outline'}
-                        onClick={() => setCalculationType('hydraulics')}
-                        className="flex flex-col h-auto py-3"
+                        <div className="flex flex-col items-center gap-2">
+                          <Icon name="Drill" size={24} />
+                          <span className="text-sm font-semibold">Бурение</span>
+                          <div className="flex items-center gap-1 text-xs">
+                            {enabledCalculations.drilling ? (
+                              <><Icon name="CheckCircle" size={14} /> Включен</>
+                            ) : (
+                              <><Icon name="Circle" size={14} /> Выключен</>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      <div
+                        onClick={() => setEnabledCalculations(prev => ({ ...prev, running: !prev.running }))}
+                        className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${
+                          enabledCalculations.running
+                            ? 'bg-primary text-primary-foreground border-primary shadow-lg'
+                            : 'bg-background hover:bg-muted border-muted-foreground/20'
+                        }`}
                       >
-                        <Icon name="Droplets" size={20} className="mb-1" />
-                        <span className="text-xs">Гидравлика</span>
-                      </Button>
+                        <div className="flex flex-col items-center gap-2">
+                          <Icon name="MoveDown" size={24} />
+                          <span className="text-sm font-semibold">Спуск</span>
+                          <div className="flex items-center gap-1 text-xs">
+                            {enabledCalculations.running ? (
+                              <><Icon name="CheckCircle" size={14} /> Включен</>
+                            ) : (
+                              <><Icon name="Circle" size={14} /> Выключен</>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      <div
+                        onClick={() => setEnabledCalculations(prev => ({ ...prev, hydraulics: !prev.hydraulics }))}
+                        className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${
+                          enabledCalculations.hydraulics
+                            ? 'bg-primary text-primary-foreground border-primary shadow-lg'
+                            : 'bg-background hover:bg-muted border-muted-foreground/20'
+                        }`}
+                      >
+                        <div className="flex flex-col items-center gap-2">
+                          <Icon name="Droplets" size={24} />
+                          <span className="text-sm font-semibold">Гидравлика</span>
+                          <div className="flex items-center gap-1 text-xs">
+                            {enabledCalculations.hydraulics ? (
+                              <><Icon name="CheckCircle" size={14} /> Включен</>
+                            ) : (
+                              <><Icon name="Circle" size={14} /> Выключен</>
+                            )}
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </div>
 
                   <div className="space-y-3 p-4 bg-muted/30 rounded-lg border">
-                    <Label className="text-xs font-semibold">Дополнительные параметры:</Label>
+                    <Label className="text-sm font-semibold flex items-center gap-2">
+                      <Icon name="Settings" size={16} />
+                      Общие параметры скважины:
+                    </Label>
+                    <div className="grid md:grid-cols-3 gap-3">
+                      <div className="space-y-2">
+                        <Label htmlFor="depth_common" className="text-xs flex items-center gap-1">
+                          <Icon name="ArrowDown" size={14} />
+                          Глубина (м)
+                        </Label>
+                        <Input
+                          id="depth_common"
+                          type="number"
+                          value={depth}
+                          onChange={(e) => setDepth(e.target.value)}
+                          className="font-mono h-9"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="mudWeight_common" className="text-xs flex items-center gap-1">
+                          <Icon name="Droplet" size={14} />
+                          Плотность раствора (г/см³)
+                        </Label>
+                        <Input
+                          id="mudWeight_common"
+                          type="number"
+                          step="0.01"
+                          value={mudWeight}
+                          onChange={(e) => setMudWeight(e.target.value)}
+                          className="font-mono h-9"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="wellDiameter" className="text-xs flex items-center gap-1">
+                          <Icon name="Circle" size={14} />
+                          Диаметр скважины (мм)
+                        </Label>
+                        <Input
+                          id="wellDiameter"
+                          type="number"
+                          step="0.1"
+                          value={wellDiameter}
+                          onChange={(e) => setWellDiameter(e.target.value)}
+                          className="font-mono h-9"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3 p-4 bg-muted/30 rounded-lg border">
+                    <Label className="text-xs font-semibold">Параметры соединений и трения:</Label>
                     <div className="grid md:grid-cols-3 gap-3">
                       <div className="space-y-2">
                         <Label htmlFor="pipeLength" className="text-xs">Длина трубы (м)</Label>
@@ -861,185 +982,181 @@ export default function Index() {
                     </div>
                   </div>
 
-                  {calculationType === 'drilling' && (
-                    <div className="grid md:grid-cols-4 gap-4 p-4 bg-accent/5 rounded-lg border border-accent/20">
-                      <div className="space-y-2">
-                        <Label htmlFor="depth" className="flex items-center gap-2 text-xs">
-                          <Icon name="ArrowDown" size={14} />
-                          Глубина (м)
-                        </Label>
-                        <Input
-                          id="depth"
-                          type="number"
-                          value={depth}
-                          onChange={(e) => setDepth(e.target.value)}
-                          className="font-mono"
-                        />
+                  {enabledCalculations.drilling && (
+                    <div className="space-y-4 p-4 bg-accent/10 rounded-lg border-2 border-accent/30">
+                      <div className="flex items-center gap-2 text-accent-foreground">
+                        <Icon name="Drill" size={20} />
+                        <Label className="text-sm font-semibold">Параметры бурения</Label>
                       </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="rpm" className="flex items-center gap-2 text-xs">
-                          <Icon name="RotateCw" size={14} />
-                          Обороты (RPM)
-                        </Label>
-                        <Input
-                          id="rpm"
-                          type="number"
-                          value={rpm}
-                          onChange={(e) => setRpm(e.target.value)}
-                          className="font-mono"
-                        />
+                      <div className="grid md:grid-cols-4 gap-3">
+                        <div className="space-y-2">
+                          <Label htmlFor="rpm" className="flex items-center gap-2 text-xs">
+                            <Icon name="RotateCw" size={14} />
+                            Обороты (RPM)
+                          </Label>
+                          <Input
+                            id="rpm"
+                            type="number"
+                            value={rpm}
+                            onChange={(e) => setRpm(e.target.value)}
+                            className="font-mono h-9"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="bitDiameter" className="flex items-center gap-2 text-xs">
+                            <Icon name="CircleDot" size={14} />
+                            Диаметр башмака (мм)
+                          </Label>
+                          <Input
+                            id="bitDiameter"
+                            type="number"
+                            step="0.1"
+                            value={bitDiameter}
+                            onChange={(e) => setBitDiameter(e.target.value)}
+                            className="font-mono h-9"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="axialLoad" className="flex items-center gap-2 text-xs">
+                            <Icon name="ArrowDown" size={14} />
+                            Осевая нагрузка (т)
+                          </Label>
+                          <Input
+                            id="axialLoad"
+                            type="number"
+                            step="0.5"
+                            value={axialLoad}
+                            onChange={(e) => setAxialLoad(e.target.value)}
+                            className="font-mono h-9"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="bitType" className="flex items-center gap-2 text-xs">
+                            <Icon name="Settings" size={14} />
+                            Тип долота
+                          </Label>
+                          <Select value={bitType} onValueChange={setBitType}>
+                            <SelectTrigger id="bitType" className="h-9">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="PDC">PDC</SelectItem>
+                              <SelectItem value="Roller">Шарошечное</SelectItem>
+                              <SelectItem value="Diamond">Алмазное</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
                       </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="bitDiameter" className="flex items-center gap-2 text-xs">
-                          <Icon name="CircleDot" size={14} />
-                          Диаметр башмака (мм)
-                        </Label>
-                        <Input
-                          id="bitDiameter"
-                          type="number"
-                          step="0.1"
-                          value={bitDiameter}
-                          onChange={(e) => setBitDiameter(e.target.value)}
-                          className="font-mono"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="axialLoad" className="flex items-center gap-2 text-xs">
-                          <Icon name="ArrowDown" size={14} />
-                          Осевая нагрузка (т)
-                        </Label>
-                        <Input
-                          id="axialLoad"
-                          type="number"
-                          step="0.5"
-                          value={axialLoad}
-                          onChange={(e) => setAxialLoad(e.target.value)}
-                          className="font-mono"
-                        />
-                      </div>
-                    </div>
-                  )}
-
-                  {calculationType === 'drilling' && (
-                    <div className="grid md:grid-cols-3 gap-4 p-4 bg-blue-500/5 rounded-lg border border-blue-500/20">
-                      <div className="space-y-2">
-                        <Label htmlFor="bitType" className="flex items-center gap-2 text-xs">
-                          <Icon name="Settings" size={14} />
-                          Тип долота
-                        </Label>
-                        <Select value={bitType} onValueChange={setBitType}>
-                          <SelectTrigger id="bitType">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="PDC">PDC (Polycrystalline Diamond)</SelectItem>
-                            <SelectItem value="Roller">Шарошечное</SelectItem>
-                            <SelectItem value="Diamond">Алмазное</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="bitTorque" className="flex items-center gap-2 text-xs">
-                          <Icon name="Gauge" size={14} />
-                          Момент на долоте (кН·м)
-                        </Label>
-                        <Input
-                          id="bitTorque"
-                          type="number"
-                          step="0.5"
-                          value={bitTorque}
-                          onChange={(e) => setBitTorque(e.target.value)}
-                          className="font-mono"
-                        />
-                      </div>
-                      <div className="p-3 bg-muted/30 rounded border">
-                        <div className="text-xs text-muted-foreground mb-1">Рекомендуемый момент:</div>
-                        <div className="font-mono font-bold text-sm">
-                          {bitType === 'PDC' ? '3.0-8.0' : bitType === 'Roller' ? '2.0-5.0' : '4.0-10.0'} кН·м
+                      <div className="grid md:grid-cols-2 gap-3">
+                        <div className="space-y-2">
+                          <Label htmlFor="bitTorque" className="flex items-center gap-2 text-xs">
+                            <Icon name="Gauge" size={14} />
+                            Момент на долоте (кН·м)
+                          </Label>
+                          <Input
+                            id="bitTorque"
+                            type="number"
+                            step="0.5"
+                            value={bitTorque}
+                            onChange={(e) => setBitTorque(e.target.value)}
+                            className="font-mono h-9"
+                          />
+                        </div>
+                        <div className="p-3 bg-muted/50 rounded border flex items-center">
+                          <div>
+                            <div className="text-xs text-muted-foreground">Рекомендуемый момент:</div>
+                            <div className="font-mono font-bold text-sm">
+                              {bitType === 'PDC' ? '3.0-8.0' : bitType === 'Roller' ? '2.0-5.0' : '4.0-10.0'} кН·м
+                            </div>
+                          </div>
                         </div>
                       </div>
                     </div>
                   )}
 
-                  {calculationType === 'hydraulics' && (
-                    <div className="grid md:grid-cols-3 gap-4 p-4 bg-primary/5 rounded-lg border border-primary/20">
-                      <div className="space-y-2">
-                        <Label htmlFor="flowRate" className="flex items-center gap-2 text-xs">
-                          <Icon name="Waves" size={14} />
-                          Расход раствора (л/с)
-                        </Label>
-                        <Input
-                          id="flowRate"
-                          type="number"
-                          value={flowRate}
-                          onChange={(e) => setFlowRate(e.target.value)}
-                          className="font-mono"
-                        />
+                  {enabledCalculations.hydraulics && (
+                    <div className="space-y-4 p-4 bg-blue-500/10 rounded-lg border-2 border-blue-500/30">
+                      <div className="flex items-center gap-2 text-blue-700">
+                        <Icon name="Droplets" size={20} />
+                        <Label className="text-sm font-semibold">Параметры гидравлики</Label>
                       </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="mudViscosity" className="flex items-center gap-2 text-xs">
-                          <Icon name="Droplet" size={14} />
-                          Вязкость (сП)
-                        </Label>
-                        <Input
-                          id="mudViscosity"
-                          type="number"
-                          value={mudViscosity}
-                          onChange={(e) => setMudViscosity(e.target.value)}
-                          className="font-mono"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="depth3" className="flex items-center gap-2 text-xs">
-                          <Icon name="ArrowDown" size={14} />
-                          Глубина (м)
-                        </Label>
-                        <Input
-                          id="depth3"
-                          type="number"
-                          value={depth}
-                          onChange={(e) => setDepth(e.target.value)}
-                          className="font-mono"
-                        />
-                      </div>
-                    </div>
-                  )}
-
-                  {calculationType === 'running' && (
-                    <div className="grid md:grid-cols-2 gap-4 p-4 bg-primary/5 rounded-lg border border-primary/20">
-                      <div className="space-y-2">
-                        <Label htmlFor="depth2" className="flex items-center gap-2 text-xs">
-                          <Icon name="ArrowDown" size={14} />
-                          Глубина спуска (м)
-                        </Label>
-                        <Input
-                          id="depth2"
-                          type="number"
-                          value={depth}
-                          onChange={(e) => setDepth(e.target.value)}
-                          className="font-mono"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="mudWeight" className="flex items-center gap-2 text-xs">
-                          <Icon name="Droplet" size={14} />
-                          Плотность раствора (г/см³)
-                        </Label>
-                        <Input
-                          id="mudWeight"
-                          type="number"
-                          step="0.01"
-                          value={mudWeight}
-                          onChange={(e) => setMudWeight(e.target.value)}
-                          className="font-mono"
-                        />
+                      <div className="grid md:grid-cols-2 gap-3">
+                        <div className="space-y-2">
+                          <Label htmlFor="flowRate" className="flex items-center gap-2 text-xs">
+                            <Icon name="Waves" size={14} />
+                            Расход раствора (л/с)
+                          </Label>
+                          <Input
+                            id="flowRate"
+                            type="number"
+                            value={flowRate}
+                            onChange={(e) => setFlowRate(e.target.value)}
+                            className="font-mono h-9"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="mudViscosity" className="flex items-center gap-2 text-xs">
+                            <Icon name="Droplet" size={14} />
+                            Вязкость (сП)
+                          </Label>
+                          <Input
+                            id="mudViscosity"
+                            type="number"
+                            value={mudViscosity}
+                            onChange={(e) => setMudViscosity(e.target.value)}
+                            className="font-mono h-9"
+                          />
+                        </div>
                       </div>
                     </div>
                   )}
 
                   <Separator />
 
-                  <Button onClick={handleCalculate} className="w-full" size="lg">
+                  <div className="p-4 bg-gradient-to-r from-primary/10 to-accent/10 rounded-lg border-2 border-primary/30">
+                    <div className="flex items-start gap-3">
+                      <Icon name="Info" size={20} className="text-primary mt-0.5" />
+                      <div className="flex-1">
+                        <div className="font-semibold text-sm mb-2">Будут выполнены расчеты:</div>
+                        <div className="flex flex-wrap gap-2">
+                          {enabledCalculations.pressure && (
+                            <Badge variant="default" className="flex items-center gap-1">
+                              <Icon name="Gauge" size={12} />
+                              Прочность (Burst/Collapse)
+                            </Badge>
+                          )}
+                          {enabledCalculations.drilling && (
+                            <Badge variant="default" className="flex items-center gap-1">
+                              <Icon name="Drill" size={12} />
+                              Бурение (Момент, WOB, Нагрузка)
+                            </Badge>
+                          )}
+                          {enabledCalculations.running && (
+                            <Badge variant="default" className="flex items-center gap-1">
+                              <Icon name="MoveDown" size={12} />
+                              Спуск (Трение, Нагрузка)
+                            </Badge>
+                          )}
+                          {enabledCalculations.hydraulics && (
+                            <Badge variant="default" className="flex items-center gap-1">
+                              <Icon name="Droplets" size={12} />
+                              Гидравлика (Потери, Очистка)
+                            </Badge>
+                          )}
+                          {!Object.values(enabledCalculations).some(v => v) && (
+                            <span className="text-sm text-muted-foreground">Выберите хотя бы один тип расчета</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <Button 
+                    onClick={handleCalculate} 
+                    className="w-full" 
+                    size="lg"
+                    disabled={!Object.values(enabledCalculations).some(v => v)}
+                  >
                     <Icon name="Play" size={18} className="mr-2" />
                     Выполнить расчет
                   </Button>
