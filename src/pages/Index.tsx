@@ -92,29 +92,31 @@ const API_PIPE_GRADES = {
   'P-110': { yield: 110000, tensile: 125000 },
 };
 
-const COMMON_SIZES = [
-  { od: 4.5, wt: 0.205, weight: 9.5 },
-  { od: 5.0, wt: 0.220, weight: 11.5 },
-  { od: 5.5, wt: 0.244, weight: 14.0 },
-  { od: 7.0, wt: 0.272, weight: 20.0 },
-  { od: 9.625, wt: 0.352, weight: 36.0 },
-  { od: 13.375, wt: 0.480, weight: 68.0 },
+const COMMON_SIZES_SI = [
+  { od: 114.3, wt: 6.35, weight: 17.0 },
+  { od: 127.0, wt: 7.72, weight: 23.2 },
+  { od: 139.7, wt: 7.72, weight: 25.5 },
+  { od: 168.3, wt: 8.94, weight: 35.7 },
+  { od: 177.8, wt: 10.36, weight: 43.5 },
+  { od: 219.1, wt: 10.16, weight: 52.6 },
+  { od: 244.5, wt: 11.99, weight: 69.4 },
+  { od: 273.1, wt: 12.19, weight: 78.8 },
 ];
 
 export default function Index() {
   const [selectedGrade, setSelectedGrade] = useState<string>('N-80');
-  const [outerDiameter, setOuterDiameter] = useState<string>('9.625');
-  const [wallThickness, setWallThickness] = useState<string>('0.352');
-  const [weight, setWeight] = useState<string>('36.0');
-  const [depth, setDepth] = useState<string>('5000');
-  const [mudWeight, setMudWeight] = useState<string>('10.5');
-  const [bitDiameter, setBitDiameter] = useState<string>('8.5');
+  const [outerDiameter, setOuterDiameter] = useState<string>('244.5');
+  const [wallThickness, setWallThickness] = useState<string>('9.0');
+  const [weight, setWeight] = useState<string>('53.5');
+  const [depth, setDepth] = useState<string>('1500');
+  const [mudWeight, setMudWeight] = useState<string>('1.25');
+  const [bitDiameter, setBitDiameter] = useState<string>('215.9');
   const [rpm, setRpm] = useState<string>('60');
-  const [flowRate, setFlowRate] = useState<string>('200');
+  const [flowRate, setFlowRate] = useState<string>('30');
   const [mudViscosity, setMudViscosity] = useState<string>('40');
-  const [wellDiameter, setWellDiameter] = useState<string>('12.25');
-  const [axialLoad, setAxialLoad] = useState<string>('5');
-  const [pipeLength, setPipeLength] = useState<string>('30');
+  const [wellDiameter, setWellDiameter] = useState<string>('311.0');
+  const [axialLoad, setAxialLoad] = useState<string>('50');
+  const [pipeLength, setPipeLength] = useState<string>('9.0');
   const [connectionType, setConnectionType] = useState<string>('Buttress');
   const [calculations, setCalculations] = useState<Calculation[]>([]);
   const [calculationType, setCalculationType] = useState<'pressure' | 'drilling' | 'running' | 'hydraulics'>('pressure');
@@ -507,16 +509,17 @@ export default function Index() {
     setShowCharts(true);
   };
 
-  const loadPreset = (preset: typeof COMMON_SIZES[0]) => {
+  const loadPreset = (preset: typeof COMMON_SIZES_SI[0]) => {
     setOuterDiameter(preset.od.toString());
     setWallThickness(preset.wt.toString());
     setWeight(preset.weight.toString());
   };
 
   const loadRussianPipe = (pipe: RussianPipe) => {
-    setOuterDiameter((pipe.outerDiameter / 25.4).toFixed(3));
-    setWallThickness((pipe.wallThickness / 25.4).toFixed(3));
-    setWeight((pipe.weight / 1.48816).toFixed(2));
+    setOuterDiameter(pipe.outerDiameter.toString());
+    setWallThickness(pipe.wallThickness.toString());
+    setWeight(pipe.weight.toString());
+    setSelectedGrade(pipe.grade === 'Д' ? 'J-55' : pipe.grade === 'Е' ? 'N-80' : 'P-110');
   };
 
   const russianPipesByManufacturer = RUSSIAN_PIPES.filter(p => p.manufacturer === selectedManufacturer);
@@ -582,12 +585,12 @@ export default function Index() {
                     <div className="space-y-2">
                       <Label htmlFor="od" className="flex items-center gap-2">
                         <Icon name="Circle" size={16} />
-                        Наружный диаметр (дюймы)
+                        Наружный диаметр (мм)
                       </Label>
                       <Input
                         id="od"
                         type="number"
-                        step="0.001"
+                        step="0.1"
                         value={outerDiameter}
                         onChange={(e) => setOuterDiameter(e.target.value)}
                         className="font-mono"
@@ -597,12 +600,12 @@ export default function Index() {
                     <div className="space-y-2">
                       <Label htmlFor="wt" className="flex items-center gap-2">
                         <Icon name="Layers" size={16} />
-                        Толщина стенки (дюймы)
+                        Толщина стенки (мм)
                       </Label>
                       <Input
                         id="wt"
                         type="number"
-                        step="0.001"
+                        step="0.1"
                         value={wallThickness}
                         onChange={(e) => setWallThickness(e.target.value)}
                         className="font-mono"
@@ -612,7 +615,7 @@ export default function Index() {
                     <div className="space-y-2">
                       <Label htmlFor="weight" className="flex items-center gap-2">
                         <Icon name="Weight" size={16} />
-                        Вес (lb/ft)
+                        Вес (кг/м)
                       </Label>
                       <Input
                         id="weight"
@@ -626,9 +629,9 @@ export default function Index() {
                   </div>
 
                   <div className="space-y-3">
-                    <Label className="text-sm text-muted-foreground">Стандартные размеры API:</Label>
+                    <Label className="text-sm text-muted-foreground">Быстрый выбор типоразмеров:</Label>
                     <div className="flex flex-wrap gap-2">
-                      {COMMON_SIZES.map((preset, idx) => (
+                      {COMMON_SIZES_SI.map((preset, idx) => (
                         <Button
                           key={idx}
                           variant="outline"
@@ -636,7 +639,7 @@ export default function Index() {
                           onClick={() => loadPreset(preset)}
                           className="font-mono text-xs"
                         >
-                          {preset.od}" × {preset.wt}" ({preset.weight} lb/ft)
+                          {preset.od} × {preset.wt} мм ({preset.weight} кг/м)
                         </Button>
                       ))}
                     </div>
@@ -763,7 +766,7 @@ export default function Index() {
                     <Label className="text-xs font-semibold">Дополнительные параметры:</Label>
                     <div className="grid md:grid-cols-3 gap-3">
                       <div className="space-y-2">
-                        <Label htmlFor="pipeLength" className="text-xs">Длина трубы (ft)</Label>
+                        <Label htmlFor="pipeLength" className="text-xs">Длина трубы (м)</Label>
                         <Input
                           id="pipeLength"
                           type="number"
@@ -773,7 +776,7 @@ export default function Index() {
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="wellDiameter" className="text-xs">Диаметр скважины (")</Label>
+                        <Label htmlFor="wellDiameter" className="text-xs">Диаметр скважины (мм)</Label>
                         <Input
                           id="wellDiameter"
                           type="number"
@@ -804,7 +807,7 @@ export default function Index() {
                       <div className="space-y-2">
                         <Label htmlFor="depth" className="flex items-center gap-2 text-xs">
                           <Icon name="ArrowDown" size={14} />
-                          Глубина (ft)
+                          Глубина (м)
                         </Label>
                         <Input
                           id="depth"
@@ -830,7 +833,7 @@ export default function Index() {
                       <div className="space-y-2">
                         <Label htmlFor="bitDiameter" className="flex items-center gap-2 text-xs">
                           <Icon name="CircleDot" size={14} />
-                          Диаметр башмака (")
+                          Диаметр башмака (мм)
                         </Label>
                         <Input
                           id="bitDiameter"
@@ -844,12 +847,12 @@ export default function Index() {
                       <div className="space-y-2">
                         <Label htmlFor="axialLoad" className="flex items-center gap-2 text-xs">
                           <Icon name="ArrowDown" size={14} />
-                          Осевая нагрузка (т)
+                          Осевая нагрузка (кН)
                         </Label>
                         <Input
                           id="axialLoad"
                           type="number"
-                          step="0.5"
+                          step="5"
                           value={axialLoad}
                           onChange={(e) => setAxialLoad(e.target.value)}
                           className="font-mono"
@@ -889,7 +892,7 @@ export default function Index() {
                       <div className="space-y-2">
                         <Label htmlFor="depth3" className="flex items-center gap-2 text-xs">
                           <Icon name="ArrowDown" size={14} />
-                          Глубина (ft)
+                          Глубина (м)
                         </Label>
                         <Input
                           id="depth3"
@@ -907,7 +910,7 @@ export default function Index() {
                       <div className="space-y-2">
                         <Label htmlFor="depth2" className="flex items-center gap-2 text-xs">
                           <Icon name="ArrowDown" size={14} />
-                          Глубина спуска (ft)
+                          Глубина спуска (м)
                         </Label>
                         <Input
                           id="depth2"
@@ -920,12 +923,12 @@ export default function Index() {
                       <div className="space-y-2">
                         <Label htmlFor="mudWeight" className="flex items-center gap-2 text-xs">
                           <Icon name="Droplet" size={14} />
-                          Плотность раствора (ppg)
+                          Плотность раствора (г/см³)
                         </Label>
                         <Input
                           id="mudWeight"
                           type="number"
-                          step="0.1"
+                          step="0.01"
                           value={mudWeight}
                           onChange={(e) => setMudWeight(e.target.value)}
                           className="font-mono"
@@ -1103,18 +1106,18 @@ export default function Index() {
                         <Icon name="Info" size={16} />
                         Параметры расчета
                       </h4>
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                      <div className="grid grid-cols-2 gap-3 text-sm">
                         <div>
                           <div className="text-muted-foreground">Марка стали</div>
                           <div className="font-mono font-semibold">{calculations[0].pipeGrade}</div>
                         </div>
                         <div>
                           <div className="text-muted-foreground">Диаметр</div>
-                          <div className="font-mono font-semibold">{calculations[0].outerDiameter}"</div>
+                          <div className="font-mono font-semibold">{calculations[0].outerDiameter} мм</div>
                         </div>
                         <div>
                           <div className="text-muted-foreground">Вес</div>
-                          <div className="font-mono font-semibold">{calculations[0].weight} lb/ft</div>
+                          <div className="font-mono font-semibold">{calculations[0].weight} кг/м</div>
                         </div>
                         <div>
                           <div className="text-muted-foreground">Время расчета</div>
