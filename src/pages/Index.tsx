@@ -101,6 +101,10 @@ const COMMON_SIZES_SI = [
   { od: 219.1, wt: 10.16, weight: 52.6 },
   { od: 244.5, wt: 11.99, weight: 69.4 },
   { od: 273.1, wt: 12.19, weight: 78.8 },
+  { od: 324.0, wt: 11.00, weight: 84.5 },
+  { od: 340.0, wt: 12.70, weight: 102.3 },
+  { od: 406.4, wt: 12.70, weight: 122.5 },
+  { od: 508.0, wt: 14.27, weight: 172.0 },
 ];
 
 export default function Index() {
@@ -118,6 +122,9 @@ export default function Index() {
   const [axialLoad, setAxialLoad] = useState<string>('50');
   const [pipeLength, setPipeLength] = useState<string>('9.0');
   const [connectionType, setConnectionType] = useState<string>('Buttress');
+  const [maxTorque, setMaxTorque] = useState<string>('25');
+  const [frictionOpenHole, setFrictionOpenHole] = useState<string>('0.35');
+  const [frictionCased, setFrictionCased] = useState<string>('0.25');
   const [calculations, setCalculations] = useState<Calculation[]>([]);
   const [calculationType, setCalculationType] = useState<'pressure' | 'drilling' | 'running' | 'hydraulics'>('pressure');
   const [showCharts, setShowCharts] = useState(false);
@@ -134,12 +141,12 @@ export default function Index() {
   const [ecdData, setEcdData] = useState<ECDData[]>([]);
 
   const calculateBurstPressure = (od: number, wt: number, grade: string): number => {
-    const yieldStrength = API_PIPE_GRADES[grade as keyof typeof API_PIPE_GRADES].yield;
+    const yieldStrength = API_PIPE_GRADES[grade as keyof typeof API_PIPE_GRADES].yield * 6.895;
     return (2 * yieldStrength * wt) / od;
   };
 
   const calculateCollapsePressure = (od: number, wt: number, grade: string): number => {
-    const yieldStrength = API_PIPE_GRADES[grade as keyof typeof API_PIPE_GRADES].yield;
+    const yieldStrength = API_PIPE_GRADES[grade as keyof typeof API_PIPE_GRADES].yield * 6.895;
     const ratio = od / wt;
     
     if (ratio <= 15) {
@@ -147,109 +154,115 @@ export default function Index() {
     } else if (ratio <= 25) {
       return yieldStrength / (0.465 * ratio - 6.775);
     } else {
-      return (46950000) / (Math.pow(ratio, 3));
+      return (46950000 * 6.895) / (Math.pow(ratio, 3));
     }
   };
 
-  const calculateDrillingParams = (od: number, wt: number, grade: string, depth: number, rpm: number, bitDia: number, axLoad: number): DrillingCalc => {
-    const yieldStrength = API_PIPE_GRADES[grade as keyof typeof API_PIPE_GRADES].yield;
-    const area = Math.PI * ((od * od) - ((od - 2 * wt) * (od - 2 * wt))) / 4;
+  const calculateDrillingParams = (od: number, wt: number, grade: string, depth: number, rpm: number, bitDia: number, axLoad: number, mudDensity: number, frictionCoeff: number, maxTorqueInput: number): DrillingCalc => {
+    const yieldStrength = API_PIPE_GRADES[grade as keyof typeof API_PIPE_GRADES].yield * 6.895;
+    const area = Math.PI * (Math.pow(od / 1000, 2) - Math.pow((od - 2 * wt) / 1000, 2)) / 4;
     const pipeWeight = parseFloat(weight);
     
-    const torque = (od / 12) * (yieldStrength * area * 0.5) / 1000;
-    const hookLoad = (pipeWeight * depth) * 1.15;
-    const drillingForce = (bitDia * bitDia * 0.785) * (yieldStrength * 0.7);
-    const maxRPM = Math.min(120, 300000 / (od * depth));
-    const wob = axLoad * 2000;
-    const mechanicalSpeed = (rpm * bitDia * 0.5) / (wob / 1000);
+    const buoyancyFactor = 1 - (mudDensity / 7.85);
+    const weightInMud = (pipeWeight * depth * buoyancyFactor * 9.81) / 1000;
+    
+    const wobKN = axLoad * 9.81;
+    
+    const torque = (weightInMud * frictionCoeff * (od / 1000) / 2) + (wobKN * frictionCoeff * (bitDia / 1000) / 2);
+    const hookLoad = weightInMud + (frictionCoeff * weightInMud) + wobKN;
+    const drillingForce = wobKN;
+    const maxRPM = Math.min(120, Math.sqrt((maxTorqueInput * 1000) / (0.05 * od * depth / 1000)));
+    const mechanicalSpeed = (rpm * (bitDia / 1000) * Math.PI) / 60;
     
     return {
-      torque: Math.round(torque),
-      hookLoad: Math.round(hookLoad),
-      drillingForce: Math.round(drillingForce),
+      torque: Math.round(torque * 10) / 10,
+      hookLoad: Math.round(hookLoad * 10) / 10,
+      drillingForce: Math.round(drillingForce * 10) / 10,
       maxRPM: Math.round(maxRPM),
-      axialLoad: Math.round(wob),
-      mechanicalSpeed: Math.round(mechanicalSpeed * 10) / 10,
-      wob
+      axialLoad: Math.round(wobKN * 10) / 10,
+      mechanicalSpeed: Math.round(mechanicalSpeed * 1000) / 1000,
+      wob: wobKN
     };
   };
 
-  const calculateRunningParams = (od: number, depth: number, mudWt: number, pipeWt: number, wellDia: number): RunningCalc => {
-    const buoyancyFactor = 1 - (mudWt / 65.5);
+  const calculateRunningParams = (od: number, depth: number, mudWt: number, pipeWt: number, wellDia: number, frictionCoeff: number): RunningCalc => {
+    const buoyancyFactor = 1 - (mudWt / 7.85);
     
-    const runningLoad = (pipeWt * depth) * 1.2;
-    const buoyantWeight = (pipeWt * depth) * buoyancyFactor;
-    const dragForce = buoyantWeight * 0.25;
-    const maxRunningSpeed = Math.max(30, 180 - (depth / 100));
+    const buoyantWeight = (pipeWt * depth * buoyancyFactor * 9.81) / 1000;
+    const dragForce = buoyantWeight * frictionCoeff;
+    const runningLoad = buoyantWeight + dragForce;
+    const maxRunningSpeed = Math.max(0.5, 3.0 - (depth / 1000));
     
-    const pressureGradient = mudWt * 0.052;
+    const pressureGradient = mudWt * 9.81 / 1000;
     const pressureAtBottom = pressureGradient * depth;
     
-    const annulusArea = Math.PI * ((wellDia * wellDia) - (od * od)) / 4;
-    const velocityAnnulus = 24.5 / annulusArea;
+    const annulusArea = Math.PI * (Math.pow(wellDia / 1000, 2) - Math.pow(od / 1000, 2)) / 4;
+    const velocityAnnulus = (parseFloat(flowRate) / 1000) / annulusArea;
     
     return {
-      runningLoad: Math.round(runningLoad),
-      buoyantWeight: Math.round(buoyantWeight),
-      dragForce: Math.round(dragForce),
-      maxRunningSpeed: Math.round(maxRunningSpeed),
-      pressureAtBottom: Math.round(pressureAtBottom),
-      velocityAnnulus: Math.round(velocityAnnulus * 10) / 10
+      runningLoad: Math.round(runningLoad * 10) / 10,
+      buoyantWeight: Math.round(buoyantWeight * 10) / 10,
+      dragForce: Math.round(dragForce * 10) / 10,
+      maxRunningSpeed: Math.round(maxRunningSpeed * 100) / 100,
+      pressureAtBottom: Math.round(pressureAtBottom * 100) / 100,
+      velocityAnnulus: Math.round(velocityAnnulus * 100) / 100
     };
   };
 
   const calculateHydraulics = (od: number, id: number, depth: number, flowRate: number, mudWt: number, viscosity: number, wellDia: number): HydraulicsCalc => {
-    const pipeArea = Math.PI * (id * id) / 4;
-    const annulusArea = Math.PI * ((wellDia * wellDia) - (od * od)) / 4;
+    const pipeArea = Math.PI * Math.pow(id / 1000, 2) / 4;
+    const annulusArea = Math.PI * (Math.pow(wellDia / 1000, 2) - Math.pow(od / 1000, 2)) / 4;
     
-    const velocityPipe = (flowRate * 0.408) / pipeArea;
-    const velocityAnnulus = (flowRate * 0.408) / annulusArea;
+    const flowRateM3s = flowRate / 1000;
+    const velocityPipe = flowRateM3s / pipeArea;
+    const velocityAnnulus = flowRateM3s / annulusArea;
     
-    const reynoldsPipe = (928 * mudWt * velocityPipe * id) / viscosity;
-    const reynoldsAnnulus = (928 * mudWt * velocityAnnulus * (wellDia - od)) / viscosity;
+    const mudDensityKg = mudWt * 1000;
+    const reynoldsPipe = (mudDensityKg * velocityPipe * (id / 1000)) / (viscosity / 1000);
+    const reynoldsAnnulus = (mudDensityKg * velocityAnnulus * ((wellDia - od) / 1000)) / (viscosity / 1000);
     
     const frictionPipe = reynoldsPipe < 2100 ? 64 / reynoldsPipe : 0.316 / Math.pow(reynoldsPipe, 0.25);
     const frictionAnnulus = reynoldsAnnulus < 2100 ? 64 / reynoldsAnnulus : 0.316 / Math.pow(reynoldsAnnulus, 0.25);
     
-    const pressureLossPipe = (frictionPipe * mudWt * velocityPipe * velocityPipe * depth) / (25.8 * id);
-    const pressureLossAnnulus = (frictionAnnulus * mudWt * velocityAnnulus * velocityAnnulus * depth) / (25.8 * (wellDia - od));
+    const pressureLossPipe = (frictionPipe * mudDensityKg * Math.pow(velocityPipe, 2) * depth) / (2 * (id / 1000) * 9.81);
+    const pressureLossAnnulus = (frictionAnnulus * mudDensityKg * Math.pow(velocityAnnulus, 2) * depth) / (2 * ((wellDia - od) / 1000) * 9.81);
     
     const totalPressureLoss = pressureLossPipe + pressureLossAnnulus;
     
-    const criticalVelocity = (2100 * viscosity) / (928 * mudWt * id);
+    const criticalVelocity = (2100 * (viscosity / 1000)) / (mudDensityKg * (id / 1000));
     
-    const cleaningEfficiency = Math.min(100, (velocityAnnulus / (116 / (wellDia - od))) * 100);
+    const minVelocityClean = 0.4;
+    const cleaningEfficiency = Math.min(100, (velocityAnnulus / minVelocityClean) * 100);
     
     return {
       flowRate,
-      pressureLossPipe: Math.round(pressureLossPipe),
-      pressureLossAnnulus: Math.round(pressureLossAnnulus),
-      totalPressureLoss: Math.round(totalPressureLoss),
-      criticalVelocity: Math.round(criticalVelocity * 10) / 10,
-      annulusVelocity: Math.round(velocityAnnulus * 10) / 10,
+      pressureLossPipe: Math.round(pressureLossPipe / 1000 * 100) / 100,
+      pressureLossAnnulus: Math.round(pressureLossAnnulus / 1000 * 100) / 100,
+      totalPressureLoss: Math.round(totalPressureLoss / 1000 * 100) / 100,
+      criticalVelocity: Math.round(criticalVelocity * 100) / 100,
+      annulusVelocity: Math.round(velocityAnnulus * 100) / 100,
       cleaningEfficiency: Math.round(cleaningEfficiency)
     };
   };
 
-  const calculateConnections = (od: number, wt: number, grade: string, connType: string): ConnectionCalc => {
-    const yieldStrength = API_PIPE_GRADES[grade as keyof typeof API_PIPE_GRADES].yield;
-    const area = Math.PI * ((od * od) - ((od - 2 * wt) * (od - 2 * wt))) / 4;
+  const calculateConnections = (od: number, wt: number, grade: string, connType: string, currentTorque: number): ConnectionCalc => {
+    const yieldStrength = API_PIPE_GRADES[grade as keyof typeof API_PIPE_GRADES].yield * 6.895;
+    const area = Math.PI * (Math.pow(od / 1000, 2) - Math.pow((od - 2 * wt) / 1000, 2)) / 4;
     
     const makeupTorqueMultiplier = connType === 'Buttress' ? 1.0 : connType === 'API-8rd' ? 0.85 : 1.15;
-    const maxTorqueConnection = (od * yieldStrength * area * 0.6 * makeupTorqueMultiplier) / 12000;
+    const maxTorqueConnection = ((od / 1000) * yieldStrength * area * 0.6 * makeupTorqueMultiplier) / 1000;
     
-    const maxAxialLoad = yieldStrength * area * 0.8;
+    const maxAxialLoad = (yieldStrength * area * 0.8) / 1000;
     
-    const currentTorque = parseFloat(outerDiameter) * 5000;
-    const torqueSafetyFactor = maxTorqueConnection / (currentTorque / 1000);
+    const torqueSafetyFactor = maxTorqueConnection / currentTorque;
     
-    const currentAxial = parseFloat(weight) * parseFloat(depth);
+    const currentAxial = (parseFloat(weight) * parseFloat(depth) * 9.81) / 1000;
     const axialSafetyFactor = maxAxialLoad / currentAxial;
     
     return {
-      maxTorqueConnection: Math.round(maxTorqueConnection),
+      maxTorqueConnection: Math.round(maxTorqueConnection * 10) / 10,
       torqueSafetyFactor: Math.round(torqueSafetyFactor * 100) / 100,
-      maxAxialLoad: Math.round(maxAxialLoad),
+      maxAxialLoad: Math.round(maxAxialLoad * 10) / 10,
       axialSafetyFactor: Math.round(axialSafetyFactor * 100) / 100,
       connectionType: connType
     };
@@ -449,12 +462,16 @@ export default function Index() {
     let hydraulics: HydraulicsCalc | undefined;
     let connections: ConnectionCalc | undefined;
     
+    const frCoeff = parseFloat(frictionOpenHole);
+    const frCoeffCased = parseFloat(frictionCased);
+    const maxT = parseFloat(maxTorque);
+    
     if (calculationType === 'drilling' && d && r && bd) {
-      drilling = calculateDrillingParams(od, wt, selectedGrade, d, r, bd, axLoad);
+      drilling = calculateDrillingParams(od, wt, selectedGrade, d, r, bd, axLoad, mw, frCoeff, maxT);
     }
     
     if (calculationType === 'running' && d && mw && wd) {
-      running = calculateRunningParams(od, d, mw, w, wd);
+      running = calculateRunningParams(od, d, mw, w, wd, frCoeffCased);
     }
 
     if (calculationType === 'hydraulics' && d && fr && mw && visc && wd) {
@@ -467,24 +484,25 @@ export default function Index() {
         }, 0);
         
         const advHydraulics = calculateAdvancedHydraulics(
-          id * 25.4, od * 25.4, wd * 25.4, d * 0.3048,
-          fr, mw * 119.826, visc, nozzlesArea
+          id, od, wd, d,
+          fr, mw * 1000, visc, nozzlesArea
         );
         setHydraulicsParams(advHydraulics);
         
-        const ecd = calculateECD(d * 0.3048, mw * 0.119826, advHydraulics.pressureLossAnnulus, mw * 0.12 * 1.8, mw * 0.12 * 1.0);
+        const ecd = calculateECD(d, mw, advHydraulics.pressureLossAnnulus, mw * 1.8, mw * 1.0);
         setEcdData(ecd);
         
-        const cleaning = calculateHoleCleaning(d * 0.3048, fr, wd * 25.4, od * 25.4, mw * 119.826, 0.5);
+        const cleaning = calculateHoleCleaning(d, fr, wd, od, mw * 1000, 0.5);
         setCleaningData(cleaning);
       }
     }
 
-    connections = calculateConnections(od, wt, selectedGrade, connectionType);
+    const currentTorque = drilling ? drilling.torque : maxT;
+    connections = calculateConnections(od, wt, selectedGrade, connectionType, currentTorque);
     
     if (d && mw) {
       const { torqueData, tripData } = calculateTorqueDrag(
-        d * 0.3048, w * 1.48816, od, wd, mw * 0.119826, frictionCoeffs.casingToOpenHole
+        d, w, od, wd, mw, frCoeff
       );
       setTorqueDepthData(torqueData);
       setTripTorqueData(tripData);
@@ -799,6 +817,39 @@ export default function Index() {
                           </SelectContent>
                         </Select>
                       </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="maxTorque" className="text-xs">Макс. крутящий момент (кН·м)</Label>
+                        <Input
+                          id="maxTorque"
+                          type="number"
+                          step="1"
+                          value={maxTorque}
+                          onChange={(e) => setMaxTorque(e.target.value)}
+                          className="font-mono h-8"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="frictionOpenHole" className="text-xs">Трение откр. ствол</Label>
+                        <Input
+                          id="frictionOpenHole"
+                          type="number"
+                          step="0.01"
+                          value={frictionOpenHole}
+                          onChange={(e) => setFrictionOpenHole(e.target.value)}
+                          className="font-mono h-8"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="frictionCased" className="text-xs">Трение обсаж. ствол</Label>
+                        <Input
+                          id="frictionCased"
+                          type="number"
+                          step="0.01"
+                          value={frictionCased}
+                          onChange={(e) => setFrictionCased(e.target.value)}
+                          className="font-mono h-8"
+                        />
+                      </div>
                     </div>
                   </div>
 
@@ -847,12 +898,12 @@ export default function Index() {
                       <div className="space-y-2">
                         <Label htmlFor="axialLoad" className="flex items-center gap-2 text-xs">
                           <Icon name="ArrowDown" size={14} />
-                          Осевая нагрузка (кН)
+                          Осевая нагрузка (т)
                         </Label>
                         <Input
                           id="axialLoad"
                           type="number"
-                          step="5"
+                          step="0.5"
                           value={axialLoad}
                           onChange={(e) => setAxialLoad(e.target.value)}
                           className="font-mono"
@@ -962,7 +1013,7 @@ export default function Index() {
                           <span className="font-semibold">Давление разрыва (Burst)</span>
                         </div>
                         <div className="text-4xl font-bold font-mono">{calculations[0].burst.toLocaleString()}</div>
-                        <div className="text-sm text-muted-foreground">psi (фунты на кв. дюйм)</div>
+                        <div className="text-sm text-muted-foreground">МПа</div>
                         <div className="text-xs text-muted-foreground pt-2 border-t">
                           Расчет по формуле API: (2 × Yield × WT) / OD
                         </div>
@@ -974,7 +1025,7 @@ export default function Index() {
                           <span className="font-semibold">Давление смятия (Collapse)</span>
                         </div>
                         <div className="text-4xl font-bold font-mono">{calculations[0].collapse.toLocaleString()}</div>
-                        <div className="text-sm text-muted-foreground">psi (фунты на кв. дюйм)</div>
+                        <div className="text-sm text-muted-foreground">МПа</div>
                         <div className="text-xs text-muted-foreground pt-2 border-t">
                           Расчет по API 5C3 (зависит от D/t)
                         </div>
@@ -993,22 +1044,22 @@ export default function Index() {
                             <div className="p-3 bg-accent/5 rounded border">
                               <div className="text-sm text-muted-foreground mb-1">Крутящий момент</div>
                               <div className="text-2xl font-bold font-mono">{calculations[0].drilling.torque.toLocaleString()}</div>
-                              <div className="text-xs text-muted-foreground">ft-lbs</div>
+                              <div className="text-xs text-muted-foreground">кН·м</div>
                             </div>
                             <div className="p-3 bg-accent/5 rounded border">
                               <div className="text-sm text-muted-foreground mb-1">Нагрузка на крюк</div>
                               <div className="text-2xl font-bold font-mono">{calculations[0].drilling.hookLoad.toLocaleString()}</div>
-                              <div className="text-xs text-muted-foreground">lbs</div>
+                              <div className="text-xs text-muted-foreground">кН</div>
                             </div>
                             <div className="p-3 bg-accent/5 rounded border">
-                              <div className="text-sm text-muted-foreground mb-1">Усилие на башмаке</div>
+                              <div className="text-sm text-muted-foreground mb-1">Нагрузка на долото (WOB)</div>
                               <div className="text-2xl font-bold font-mono">{calculations[0].drilling.drillingForce.toLocaleString()}</div>
-                              <div className="text-xs text-muted-foreground">lbs</div>
+                              <div className="text-xs text-muted-foreground">кН</div>
                             </div>
                             <div className="p-3 bg-accent/5 rounded border">
                               <div className="text-sm text-muted-foreground mb-1">Макс. обороты</div>
                               <div className="text-2xl font-bold font-mono">{calculations[0].drilling.maxRPM}</div>
-                              <div className="text-xs text-muted-foreground">RPM</div>
+                              <div className="text-xs text-muted-foreground">об/мин</div>
                             </div>
                           </div>
                         </div>
@@ -1027,22 +1078,22 @@ export default function Index() {
                             <div className="p-3 bg-primary/5 rounded border">
                               <div className="text-sm text-muted-foreground mb-1">Нагрузка при спуске</div>
                               <div className="text-2xl font-bold font-mono">{calculations[0].running.runningLoad.toLocaleString()}</div>
-                              <div className="text-xs text-muted-foreground">lbs (с запасом)</div>
+                              <div className="text-xs text-muted-foreground">кН</div>
                             </div>
                             <div className="p-3 bg-primary/5 rounded border">
                               <div className="text-sm text-muted-foreground mb-1">Вес в растворе</div>
                               <div className="text-2xl font-bold font-mono">{calculations[0].running.buoyantWeight.toLocaleString()}</div>
-                              <div className="text-xs text-muted-foreground">lbs (с учетом выталкивания)</div>
+                              <div className="text-xs text-muted-foreground">кН</div>
                             </div>
                             <div className="p-3 bg-primary/5 rounded border">
                               <div className="text-sm text-muted-foreground mb-1">Сила трения</div>
                               <div className="text-2xl font-bold font-mono">{calculations[0].running.dragForce.toLocaleString()}</div>
-                              <div className="text-xs text-muted-foreground">lbs</div>
+                              <div className="text-xs text-muted-foreground">кН</div>
                             </div>
                             <div className="p-3 bg-primary/5 rounded border">
                               <div className="text-sm text-muted-foreground mb-1">Макс. скорость спуска</div>
                               <div className="text-2xl font-bold font-mono">{calculations[0].running.maxRunningSpeed}</div>
-                              <div className="text-xs text-muted-foreground">ft/min</div>
+                              <div className="text-xs text-muted-foreground">м/с</div>
                             </div>
                           </div>
                         </div>
@@ -1061,29 +1112,29 @@ export default function Index() {
                             <div className="p-3 bg-primary/5 rounded border">
                               <div className="text-sm text-muted-foreground mb-1">Потери в трубе</div>
                               <div className="text-2xl font-bold font-mono">{calculations[0].hydraulics.pressureLossPipe.toLocaleString()}</div>
-                              <div className="text-xs text-muted-foreground">psi</div>
+                              <div className="text-xs text-muted-foreground">МПа</div>
                             </div>
                             <div className="p-3 bg-primary/5 rounded border">
                               <div className="text-sm text-muted-foreground mb-1">Потери в затрубье</div>
                               <div className="text-2xl font-bold font-mono">{calculations[0].hydraulics.pressureLossAnnulus.toLocaleString()}</div>
-                              <div className="text-xs text-muted-foreground">psi</div>
+                              <div className="text-xs text-muted-foreground">МПа</div>
                             </div>
                             <div className="p-3 bg-accent/5 rounded border border-accent/30">
                               <div className="text-sm text-muted-foreground mb-1">Общие потери</div>
                               <div className="text-2xl font-bold font-mono">{calculations[0].hydraulics.totalPressureLoss.toLocaleString()}</div>
-                              <div className="text-xs text-muted-foreground">psi</div>
+                              <div className="text-xs text-muted-foreground">МПа</div>
                             </div>
                           </div>
                           <div className="grid md:grid-cols-3 gap-4 mt-3">
                             <div className="p-3 bg-muted/50 rounded border">
                               <div className="text-sm text-muted-foreground mb-1">Скорость в затрубье</div>
                               <div className="text-xl font-bold font-mono">{calculations[0].hydraulics.annulusVelocity}</div>
-                              <div className="text-xs text-muted-foreground">ft/s</div>
+                              <div className="text-xs text-muted-foreground">м/с</div>
                             </div>
                             <div className="p-3 bg-muted/50 rounded border">
                               <div className="text-sm text-muted-foreground mb-1">Критическая скорость</div>
                               <div className="text-xl font-bold font-mono">{calculations[0].hydraulics.criticalVelocity}</div>
-                              <div className="text-xs text-muted-foreground">ft/s</div>
+                              <div className="text-xs text-muted-foreground">м/с</div>
                             </div>
                             <div className={`p-3 rounded border ${
                               calculations[0].hydraulics.cleaningEfficiency >= 85 ? 'bg-green-500/10 border-green-500/30' :
@@ -1166,20 +1217,20 @@ export default function Index() {
                             <div className="space-y-3">
                               <div className="flex justify-between items-center p-3 bg-primary/10 rounded border">
                                 <span className="text-sm">В трубе</span>
-                                <span className="font-mono font-bold">{calculations[0].hydraulics.pressureLossPipe} psi</span>
+                                <span className="font-mono font-bold">{calculations[0].hydraulics.pressureLossPipe} МПа</span>
                               </div>
                               <div className="flex justify-between items-center p-3 bg-accent/10 rounded border">
                                 <span className="text-sm">В затрубье</span>
-                                <span className="font-mono font-bold">{calculations[0].hydraulics.pressureLossAnnulus} psi</span>
+                                <span className="font-mono font-bold">{calculations[0].hydraulics.pressureLossAnnulus} МПа</span>
                               </div>
                               <div className="flex justify-between items-center p-3 bg-secondary/20 rounded border-2">
                                 <span className="text-sm font-semibold">Общие потери</span>
-                                <span className="font-mono font-bold text-lg">{calculations[0].hydraulics.totalPressureLoss} psi</span>
+                                <span className="font-mono font-bold text-lg">{calculations[0].hydraulics.totalPressureLoss} МПа</span>
                               </div>
                             </div>
                             <div className="text-xs text-muted-foreground border-t pt-3">
                               <div className="mb-2">Расход раствора: <span className="font-mono font-semibold">{calculations[0].hydraulics.flowRate} л/с</span></div>
-                              <div>Скорость в затрубье: <span className="font-mono font-semibold">{calculations[0].hydraulics.annulusVelocity} ft/s</span></div>
+                              <div>Скорость в затрубье: <span className="font-mono font-semibold">{calculations[0].hydraulics.annulusVelocity} м/с</span></div>
                             </div>
                           </div>
                         </CardContent>
@@ -1215,7 +1266,7 @@ export default function Index() {
                             <div className="space-y-2 p-4 bg-accent/5 rounded-lg border">
                               <div className="text-sm text-muted-foreground">Макс. крутящий момент</div>
                               <div className="text-2xl font-bold font-mono">{calculations[0].connections.maxTorqueConnection.toLocaleString()}</div>
-                              <div className="text-xs text-muted-foreground">Нм</div>
+                              <div className="text-xs text-muted-foreground">кН·м</div>
                               <div className="mt-2 pt-2 border-t">
                                 <div className="text-xs text-muted-foreground">Коэффициент запаса</div>
                                 <div className={`font-mono font-bold ${
@@ -1230,7 +1281,7 @@ export default function Index() {
                             <div className="space-y-2 p-4 bg-primary/5 rounded-lg border">
                               <div className="text-sm text-muted-foreground">Макс. осевая нагрузка</div>
                               <div className="text-2xl font-bold font-mono">{calculations[0].connections.maxAxialLoad.toLocaleString()}</div>
-                              <div className="text-xs text-muted-foreground">lbs</div>
+                              <div className="text-xs text-muted-foreground">кН</div>
                               <div className="mt-2 pt-2 border-t">
                                 <div className="text-xs text-muted-foreground">Коэффициент запаса</div>
                                 <div className={`font-mono font-bold ${
