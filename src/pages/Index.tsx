@@ -18,6 +18,7 @@ import ExcelImport, { WellProfilePoint } from '@/components/wellProfile/ExcelImp
 import TorqueDepthChart, { TorqueData } from '@/components/torque/TorqueDepthChart';
 import TripTorqueTable, { TripTorquePoint } from '@/components/torque/TripTorqueTable';
 import HoleCleaningChart, { CleaningPillowData } from '@/components/cleaning/HoleCleaningChart';
+import ECDChart, { ECDData } from '@/components/ecd/ECDChart';
 import { RUSSIAN_PIPES, RussianPipe } from '@/data/russianPipes';
 import { UnitSystem, UNITS, convert, FrictionCoefficients, DEFAULT_FRICTION_COEFFICIENTS } from '@/utils/unitConversion';
 
@@ -118,6 +119,17 @@ export default function Index() {
   const [calculations, setCalculations] = useState<Calculation[]>([]);
   const [calculationType, setCalculationType] = useState<'pressure' | 'drilling' | 'running' | 'hydraulics'>('pressure');
   const [showCharts, setShowCharts] = useState(false);
+  
+  const [nozzles, setNozzles] = useState<Nozzle[]>([]);
+  const [wellProfile, setWellProfile] = useState<WellProfilePoint[]>([]);
+  const [unitSystem, setUnitSystem] = useState<UnitSystem>('SI');
+  const [frictionCoeffs, setFrictionCoeffs] = useState<FrictionCoefficients>(DEFAULT_FRICTION_COEFFICIENTS);
+  const [selectedManufacturer, setSelectedManufacturer] = useState<string>('ОТТМ');
+  const [torqueDepthData, setTorqueDepthData] = useState<TorqueData[]>([]);
+  const [tripTorqueData, setTripTorqueData] = useState<TripTorquePoint[]>([]);
+  const [cleaningData, setCleaningData] = useState<CleaningPillowData[]>([]);
+  const [hydraulicsParams, setHydraulicsParams] = useState<HydraulicsParams | null>(null);
+  const [ecdData, setEcdData] = useState<ECDData[]>([]);
 
   const calculateBurstPressure = (od: number, wt: number, grade: string): number => {
     const yieldStrength = API_PIPE_GRADES[grade as keyof typeof API_PIPE_GRADES].yield;
@@ -241,6 +253,176 @@ export default function Index() {
     };
   };
 
+  const calculateAdvancedHydraulics = (
+    pipeID: number, pipeOD: number, holeSize: number, depth: number,
+    flowRate: number, mudDensity: number, mudViscosity: number, nozzlesArea: number
+  ): HydraulicsParams => {
+    const pipeArea = Math.PI * Math.pow(pipeID / 1000, 2) / 4;
+    const annulusArea = Math.PI * (Math.pow(holeSize / 1000, 2) - Math.pow(pipeOD / 1000, 2)) / 4;
+    
+    const flowRateM3s = flowRate / 1000;
+    const pipeVelocity = flowRateM3s / pipeArea;
+    const annulusVelocity = flowRateM3s / annulusArea;
+    
+    const reynoldsNumber = (928 * mudDensity * pipeVelocity * (pipeID / 1000)) / (mudViscosity / 1000);
+    let flowRegime: 'Ламинарный' | 'Переходный' | 'Турбулентный';
+    if (reynoldsNumber < 2300) flowRegime = 'Ламинарный';
+    else if (reynoldsNumber <= 4000) flowRegime = 'Переходный';
+    else flowRegime = 'Турбулентный';
+    
+    const frictionPipe = reynoldsNumber < 2300 ? 64 / reynoldsNumber : 0.316 / Math.pow(reynoldsNumber, 0.25);
+    const pressureLossPipe = (frictionPipe * mudDensity * Math.pow(pipeVelocity, 2) * depth) / (2 * (pipeID / 1000) * 9.81);
+    
+    const reynoldsAnnulus = (928 * mudDensity * annulusVelocity * ((holeSize - pipeOD) / 1000)) / (mudViscosity / 1000);
+    const frictionAnnulus = reynoldsAnnulus < 2300 ? 64 / reynoldsAnnulus : 0.316 / Math.pow(reynoldsAnnulus, 0.25);
+    const pressureLossAnnulus = (frictionAnnulus * mudDensity * Math.pow(annulusVelocity, 2) * depth) / (2 * ((holeSize - pipeOD) / 1000) * 9.81);
+    
+    const jetVelocity = flowRateM3s / (nozzlesArea / 1000000);
+    const pressureLossNozzles = (mudDensity * Math.pow(jetVelocity, 2)) / (2 * 9.81 * 1000);
+    
+    const totalPressureLoss = pressureLossPipe + pressureLossAnnulus + pressureLossNozzles;
+    const hydraulicPower = (flowRateM3s * totalPressureLoss * 1000) / 1000;
+    const jetImpactForce = mudDensity * flowRateM3s * jetVelocity;
+    
+    return {
+      flowRate,
+      pumpPressure: totalPressureLoss / 1000,
+      mudDensity: mudDensity / 1000,
+      mudViscosity,
+      pipeID,
+      pipeOD,
+      holeSize,
+      depth,
+      nozzlesArea,
+      pressureLossPipe: pressureLossPipe / 1000,
+      pressureLossAnnulus: pressureLossAnnulus / 1000,
+      pressureLossNozzles: pressureLossNozzles / 1000,
+      totalPressureLoss: totalPressureLoss / 1000,
+      annulusVelocity,
+      pipeVelocity,
+      jetVelocity,
+      hydraulicPower,
+      jetImpactForce,
+      reynoldsNumber,
+      flowRegime
+    };
+  };
+
+  const calculateECD = (
+    depth: number, staticMudDensity: number, pressureLossAnnulus: number,
+    fracGradient: number, poreGradient: number
+  ): ECDData[] => {
+    const data: ECDData[] = [];
+    const steps = 10;
+    const stepSize = depth / steps;
+    
+    for (let i = 0; i <= steps; i++) {
+      const currentDepth = i * stepSize;
+      const pressureAtDepth = (pressureLossAnnulus / depth) * currentDepth;
+      
+      const ecdCirculating = staticMudDensity + (pressureAtDepth * 1000) / (9.81 * currentDepth || 1);
+      const ecdTripping = staticMudDensity + (pressureAtDepth * 1000 * 1.15) / (9.81 * currentDepth || 1);
+      
+      data.push({
+        depth: Math.round(currentDepth),
+        staticDensity: staticMudDensity,
+        ecdCirculating: parseFloat(ecdCirculating.toFixed(3)),
+        ecdTripping: parseFloat(ecdTripping.toFixed(3)),
+        fracGradient,
+        poreGradient
+      });
+    }
+    
+    return data;
+  };
+
+  const calculateTorqueDrag = (
+    depth: number, pipeWeight: number, od: number, holeSize: number,
+    mudDensity: number, frictionCoeff: number
+  ): { torqueData: TorqueData[]; tripData: TripTorquePoint[] } => {
+    const torqueData: TorqueData[] = [];
+    const tripData: TripTorquePoint[] = [];
+    const steps = 10;
+    const stepSize = depth / steps;
+    
+    const buoyancyFactor = 1 - (mudDensity / 7.85);
+    
+    for (let i = 0; i <= steps; i++) {
+      const currentDepth = i * stepSize;
+      const buoyantWeight = pipeWeight * currentDepth * buoyancyFactor * 9.81 / 1000;
+      
+      const normalForce = buoyantWeight;
+      const frictionForce = normalForce * frictionCoeff;
+      
+      const tripInRotating = (frictionForce * od * 0.0254 / 2) * 0.8;
+      const rotatingOffBottom = (frictionForce * od * 0.0254 / 2) * 0.7;
+      const tripOutRotating = (frictionForce * od * 0.0254 / 2) * 0.85;
+      
+      torqueData.push({
+        depth: Math.round(currentDepth),
+        tripInRotating: parseFloat(tripInRotating.toFixed(2)),
+        rotatingOffBottom: parseFloat(rotatingOffBottom.toFixed(2)),
+        tripOutRotating: parseFloat(tripOutRotating.toFixed(2))
+      });
+      
+      const hookLoad = buoyantWeight + frictionForce;
+      const pickupLoad = hookLoad * 1.1;
+      const slackOffLoad = hookLoad * 0.9;
+      const rotatingLoad = hookLoad * 0.85;
+      
+      const area = Math.PI * Math.pow(od * 0.0254 / 2, 2);
+      const pipeStress = (hookLoad * 1000) / area;
+      
+      tripData.push({
+        depth: Math.round(currentDepth),
+        hookLoad: parseFloat(hookLoad.toFixed(1)),
+        pickupLoad: parseFloat(pickupLoad.toFixed(1)),
+        slackOffLoad: parseFloat(slackOffLoad.toFixed(1)),
+        rotatingLoad: parseFloat(rotatingLoad.toFixed(1)),
+        torqueWithCirculation: parseFloat(tripInRotating.toFixed(2)),
+        torqueNoCirculation: parseFloat((tripInRotating * 1.2).toFixed(2)),
+        overpull: parseFloat((pickupLoad - hookLoad).toFixed(1)),
+        pipeStress: parseFloat((pipeStress / 1000000).toFixed(1))
+      });
+    }
+    
+    return { torqueData, tripData };
+  };
+
+  const calculateHoleCleaning = (
+    depth: number, flowRate: number, holeSize: number, pipeOD: number,
+    mudDensity: number, cuttingsRate: number
+  ): CleaningPillowData[] => {
+    const data: CleaningPillowData[] = [];
+    const steps = 10;
+    const stepSize = depth / steps;
+    
+    for (let i = 0; i <= steps; i++) {
+      const currentDepth = i * stepSize;
+      const annulusArea = Math.PI * (Math.pow(holeSize / 1000, 2) - Math.pow(pipeOD / 1000, 2)) / 4;
+      const annulusVelocity = (flowRate / 1000) / annulusArea;
+      
+      const slipVelocity = 0.15;
+      const transportRatio = annulusVelocity / slipVelocity;
+      const cleaningEfficiency = Math.min(100, transportRatio * 25);
+      
+      const cuttingsConcentration = (cuttingsRate / (flowRate * 60)) * 100 * (1 - cleaningEfficiency / 100);
+      const pillowHeight = (cuttingsConcentration / 100) * stepSize * 0.1;
+      
+      data.push({
+        depth: Math.round(currentDepth),
+        flowRate,
+        cleaningEfficiency: parseFloat(cleaningEfficiency.toFixed(1)),
+        cuttingsConcentration: parseFloat(cuttingsConcentration.toFixed(2)),
+        pillowHeight: parseFloat(pillowHeight.toFixed(2)),
+        annulusVelocity: parseFloat(annulusVelocity.toFixed(3)),
+        transportRatio: parseFloat(transportRatio.toFixed(2))
+      });
+    }
+    
+    return data;
+  };
+
   const handleCalculate = () => {
     const od = parseFloat(outerDiameter);
     const wt = parseFloat(wallThickness);
@@ -275,9 +457,36 @@ export default function Index() {
 
     if (calculationType === 'hydraulics' && d && fr && mw && visc && wd) {
       hydraulics = calculateHydraulics(od, id, d, fr, mw, visc, wd);
+      
+      if (nozzles.length > 0) {
+        const nozzlesArea = nozzles.reduce((sum, n) => {
+          const radius = n.diameter / 2;
+          return sum + Math.PI * radius * radius;
+        }, 0);
+        
+        const advHydraulics = calculateAdvancedHydraulics(
+          id * 25.4, od * 25.4, wd * 25.4, d * 0.3048,
+          fr, mw * 119.826, visc, nozzlesArea
+        );
+        setHydraulicsParams(advHydraulics);
+        
+        const ecd = calculateECD(d * 0.3048, mw * 0.119826, advHydraulics.pressureLossAnnulus, mw * 0.12 * 1.8, mw * 0.12 * 1.0);
+        setEcdData(ecd);
+        
+        const cleaning = calculateHoleCleaning(d * 0.3048, fr, wd * 25.4, od * 25.4, mw * 119.826, 0.5);
+        setCleaningData(cleaning);
+      }
     }
 
     connections = calculateConnections(od, wt, selectedGrade, connectionType);
+    
+    if (d && mw) {
+      const { torqueData, tripData } = calculateTorqueDrag(
+        d * 0.3048, w * 1.48816, od, wd, mw * 0.119826, frictionCoeffs.casingToOpenHole
+      );
+      setTorqueDepthData(torqueData);
+      setTripTorqueData(tripData);
+    }
 
     const newCalc: Calculation = {
       id: Date.now().toString(),
@@ -943,11 +1152,63 @@ export default function Index() {
                       </CardContent>
                     </Card>
                   )}
+                  
+                  {/* Новые компоненты профессиональных расчетов */}
+                  {nozzles.length > 0 && (
+                    <NozzleConfig nozzles={nozzles} onChange={setNozzles} />
+                  )}
+                  
+                  {hydraulicsParams && (
+                    <HydraulicsTable params={hydraulicsParams} />
+                  )}
+                  
+                  {torqueDepthData.length > 0 && calculations[0]?.connections && (
+                    <TorqueDepthChart 
+                      data={torqueDepthData} 
+                      maxTorque={calculations[0].connections.maxTorqueConnection}
+                    />
+                  )}
+                  
+                  {tripTorqueData.length > 0 && (
+                    <TripTorqueTable data={tripTorqueData} />
+                  )}
+                  
+                  {cleaningData.length > 0 && (
+                    <HoleCleaningChart data={cleaningData} />
+                  )}
+                  
+                  {ecdData.length > 0 && (
+                    <ECDChart data={ecdData} />
+                  )}
                 </>
               )}
             </div>
 
             <div className="space-y-6">
+              {/* Импорт профиля скважины */}
+              <ExcelImport onImport={setWellProfile} />
+              
+              {/* Кнопка добавления насадок */}
+              {nozzles.length === 0 && (
+                <Card className="border-2">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Icon name="Settings" size={20} />
+                      Продвинутые расчеты
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <Button 
+                      onClick={() => setNozzles([{ id: Date.now(), diameter: 12 }])}
+                      className="w-full gap-2"
+                    >
+                      <Icon name="Plus" size={16} />
+                      Добавить насадки долота
+                    </Button>
+                  </CardContent>
+                </Card>
+              )}
+              
               <Card className="border-2">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
