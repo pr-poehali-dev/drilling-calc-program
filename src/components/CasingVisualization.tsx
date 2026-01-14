@@ -180,19 +180,19 @@ export default function CasingVisualization({
               {ratio <= 15 && (
                 <div className="flex items-center gap-2">
                   <Icon name="CheckCircle" size={14} className="text-green-600" />
-                  <span>Толстостенная труба (D/t ≤ 15) - высокая устойчивость к смятию</span>
+                  <span>Толстостенная труба (D/t &le; 15) - высокая устойчивость к смятию</span>
                 </div>
               )}
               {ratio > 15 && ratio <= 25 && (
                 <div className="flex items-center gap-2">
                   <Icon name="AlertCircle" size={14} className="text-orange-600" />
-                  <span>Среднестенная труба (15 < D/t ≤ 25) - стандартная прочность</span>
+                  <span>Среднестенная труба (15 &lt; D/t &le; 25) - стандартная прочность</span>
                 </div>
               )}
               {ratio > 25 && (
                 <div className="flex items-center gap-2">
                   <Icon name="AlertTriangle" size={14} className="text-destructive" />
-                  <span>Тонкостенная труба (D/t > 25) - повышенный риск смятия</span>
+                  <span>Тонкостенная труба (D/t &gt; 25) - повышенный риск смятия</span>
                 </div>
               )}
               

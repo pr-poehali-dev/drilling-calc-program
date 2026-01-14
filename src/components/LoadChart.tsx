@@ -93,17 +93,17 @@ export default function LoadChart({ hookLoad, buoyantWeight, dragForce, maxLoad 
             {safetyFactor >= 1.5 ? (
               <div className="flex items-center gap-2 text-green-600">
                 <Icon name="CheckCircle" size={14} />
-                <span>Безопасный режим работы (Кз ≥ 1.5)</span>
+                <span>Безопасный режим работы (Кз &ge; 1.5)</span>
               </div>
             ) : safetyFactor >= 1.2 ? (
               <div className="flex items-center gap-2 text-orange-600">
                 <Icon name="AlertTriangle" size={14} />
-                <span>Ограниченный запас прочности (1.2 ≤ Кз < 1.5)</span>
+                <span>Ограниченный запас прочности (1.2 &le; Кз &lt; 1.5)</span>
               </div>
             ) : (
               <div className="flex items-center gap-2 text-destructive">
                 <Icon name="XCircle" size={14} />
-                <span className="font-semibold">КРИТИЧЕСКАЯ ПЕРЕГРУЗКА! (Кз < 1.2)</span>
+                <span className="font-semibold">КРИТИЧЕСКАЯ ПЕРЕГРУЗКА! (Кз &lt; 1.2)</span>
               </div>
             )}
           </div>
