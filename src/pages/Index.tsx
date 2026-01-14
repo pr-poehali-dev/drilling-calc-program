@@ -513,6 +513,14 @@ export default function Index() {
     setWeight(preset.weight.toString());
   };
 
+  const loadRussianPipe = (pipe: RussianPipe) => {
+    setOuterDiameter((pipe.outerDiameter / 25.4).toFixed(3));
+    setWallThickness((pipe.wallThickness / 25.4).toFixed(3));
+    setWeight((pipe.weight / 1.48816).toFixed(2));
+  };
+
+  const russianPipesByManufacturer = RUSSIAN_PIPES.filter(p => p.manufacturer === selectedManufacturer);
+
   return (
     <div className="min-h-screen bg-background engineering-grid-accent">
       <div className="engineering-grid min-h-screen">
@@ -525,10 +533,16 @@ export default function Index() {
                 </div>
                 <div>
                   <h1 className="text-2xl font-bold text-foreground">API Casing Calculator</h1>
-                  <p className="text-sm text-muted-foreground">Расчет параметров обсадных труб по стандартам API 5CT</p>
+                  <p className="text-sm text-muted-foreground">Расчет параметров обсадных труб по стандартам API 5CT и ГОСТ Р 51906</p>
                 </div>
               </div>
-              <Badge variant="outline" className="font-mono">v2.0</Badge>
+              <div className="flex items-center gap-2">
+                <Badge variant="secondary" className="gap-1">
+                  <Icon name="Factory" size={12} />
+                  ОТТМ • БТС • ТМК
+                </Badge>
+                <Badge variant="outline" className="font-mono">v2.5</Badge>
+              </div>
             </div>
           </div>
         </header>
@@ -612,7 +626,7 @@ export default function Index() {
                   </div>
 
                   <div className="space-y-3">
-                    <Label className="text-sm text-muted-foreground">Стандартные размеры:</Label>
+                    <Label className="text-sm text-muted-foreground">Стандартные размеры API:</Label>
                     <div className="flex flex-wrap gap-2">
                       {COMMON_SIZES.map((preset, idx) => (
                         <Button
@@ -626,6 +640,83 @@ export default function Index() {
                         </Button>
                       ))}
                     </div>
+                  </div>
+
+                  <Separator />
+
+                  {/* Селектор российских труб */}
+                  <div className="space-y-4 p-4 bg-primary/5 rounded-lg border-2 border-primary/20">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-sm font-semibold flex items-center gap-2">
+                        <Icon name="Factory" size={16} />
+                        Российские производители (ГОСТ Р 51906)
+                      </Label>
+                      <Badge variant="secondary" className="font-mono">
+                        {russianPipesByManufacturer.length} типоразмеров
+                      </Badge>
+                    </div>
+                    
+                    <div className="grid md:grid-cols-3 gap-3">
+                      <Button
+                        variant={selectedManufacturer === 'ОТТМ' ? 'default' : 'outline'}
+                        onClick={() => setSelectedManufacturer('ОТТМ')}
+                        className="font-semibold"
+                      >
+                        ОТТМ
+                      </Button>
+                      <Button
+                        variant={selectedManufacturer === 'БТС' ? 'default' : 'outline'}
+                        onClick={() => setSelectedManufacturer('БТС')}
+                        className="font-semibold"
+                      >
+                        БТС
+                      </Button>
+                      <Button
+                        variant={selectedManufacturer === 'ТМК' ? 'default' : 'outline'}
+                        onClick={() => setSelectedManufacturer('ТМК')}
+                        className="font-semibold"
+                      >
+                        ТМК
+                      </Button>
+                    </div>
+
+                    <ScrollArea className="h-64 rounded border bg-background">
+                      <div className="p-3 space-y-2">
+                        {russianPipesByManufacturer.map((pipe, idx) => (
+                          <div
+                            key={idx}
+                            onClick={() => loadRussianPipe(pipe)}
+                            className="p-3 rounded-lg border-2 hover:border-primary hover:bg-primary/5 cursor-pointer transition-all"
+                          >
+                            <div className="flex items-center justify-between mb-2">
+                              <Badge variant="outline" className="font-mono text-xs">
+                                {pipe.outerDiameter}×{pipe.wallThickness} мм
+                              </Badge>
+                              <Badge className="text-xs">
+                                {pipe.grade}
+                              </Badge>
+                            </div>
+                            <div className="grid grid-cols-2 gap-2 text-xs">
+                              <div className="text-muted-foreground">
+                                Вес: <span className="font-mono font-semibold text-foreground">{pipe.weight} кг/м</span>
+                              </div>
+                              <div className="text-muted-foreground">
+                                Σ<sub>т</sub>: <span className="font-mono font-semibold text-foreground">{pipe.yieldStrength} МПа</span>
+                              </div>
+                              <div className="text-muted-foreground">
+                                Burst: <span className="font-mono font-semibold text-foreground">{pipe.burst} МПа</span>
+                              </div>
+                              <div className="text-muted-foreground">
+                                Collapse: <span className="font-mono font-semibold text-foreground">{pipe.collapse} МПа</span>
+                              </div>
+                            </div>
+                            <div className="mt-2 pt-2 border-t text-xs text-muted-foreground">
+                              {pipe.connectionType} • Растяжение: {pipe.tension} кН
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </ScrollArea>
                   </div>
 
                   <Separator />
@@ -1208,18 +1299,81 @@ export default function Index() {
                   </CardContent>
                 </Card>
               )}
+
+              {/* Информация о российских производителях */}
+              <Card className="border-2 bg-gradient-to-br from-primary/5 to-accent/5">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Icon name="Factory" size={20} />
+                    Российские производители
+                  </CardTitle>
+                  <CardDescription>
+                    База труб по ГОСТ Р 51906
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-3 gap-2">
+                    {['ОТТМ', 'БТС', 'ТМК'].map(manufacturer => {
+                      const count = RUSSIAN_PIPES.filter(p => p.manufacturer === manufacturer).length;
+                      return (
+                        <div key={manufacturer} className="p-3 bg-background rounded-lg border text-center">
+                          <div className="font-bold text-lg">{manufacturer}</div>
+                          <div className="text-xs text-muted-foreground">{count} труб</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  
+                  <div className="p-3 bg-muted/50 rounded-lg text-sm space-y-2">
+                    <div className="font-semibold flex items-center gap-2">
+                      <Icon name="Info" size={14} />
+                      Доступные марки стали
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {['Д', 'Е', 'К'].map(grade => (
+                        <Badge key={grade} variant="outline" className="text-xs">
+                          {grade}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="space-y-2 text-xs">
+                    <div className="flex justify-between p-2 bg-background rounded">
+                      <span className="text-muted-foreground">Диаметры:</span>
+                      <span className="font-mono font-semibold">114.3 - 273.1 мм</span>
+                    </div>
+                    <div className="flex justify-between p-2 bg-background rounded">
+                      <span className="text-muted-foreground">Предел текучести:</span>
+                      <span className="font-mono font-semibold">379 - 758 МПа</span>
+                    </div>
+                    <div className="flex justify-between p-2 bg-background rounded">
+                      <span className="text-muted-foreground">Резьбы:</span>
+                      <span className="font-mono font-semibold">Buttress, Premium, Ultra</span>
+                    </div>
+                  </div>
+
+                  <div className="pt-3 border-t text-xs text-muted-foreground">
+                    💡 Выберите производителя в разделе "Параметры трубы" для загрузки характеристик
+                  </div>
+                </CardContent>
+              </Card>
               
               <Card className="border-2">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Icon name="FileText" size={20} />
-                    Справочник API
+                    Справочник труб
                   </CardTitle>
+                  <CardDescription>
+                    API 5CT и ГОСТ Р 51906
+                  </CardDescription>
                 </CardHeader>
                 <CardContent>
                   <Tabs defaultValue="grades" className="w-full">
-                    <TabsList className="grid w-full grid-cols-3">
-                      <TabsTrigger value="grades">Марки</TabsTrigger>
+                    <TabsList className="grid w-full grid-cols-4">
+                      <TabsTrigger value="grades">API</TabsTrigger>
+                      <TabsTrigger value="russian">РФ</TabsTrigger>
                       <TabsTrigger value="operations">Операции</TabsTrigger>
                       <TabsTrigger value="standards">Стандарты</TabsTrigger>
                     </TabsList>
@@ -1241,6 +1395,84 @@ export default function Index() {
                           </div>
                         ))}
                       </ScrollArea>
+                    </TabsContent>
+                    <TabsContent value="russian" className="space-y-3 mt-4">
+                      <div className="space-y-3">
+                        <div className="text-sm font-semibold">ГОСТ Р 51906 - Российские производители</div>
+                        
+                        {/* ОТТМ */}
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2 p-2 bg-blue-500/10 rounded">
+                            <Icon name="Factory" size={16} className="text-blue-600" />
+                            <span className="font-semibold">ОТТМ (Орский ТТЗ)</span>
+                          </div>
+                          <ScrollArea className="h-[80px]">
+                            <div className="space-y-1 text-xs pr-3">
+                              {RUSSIAN_PIPES.filter(p => p.manufacturer === 'ОТТМ').slice(0, 3).map((pipe, idx) => (
+                                <div key={idx} className="flex justify-between p-1 hover:bg-muted/50 rounded">
+                                  <span className="font-mono">{pipe.outerDiameter}×{pipe.wallThickness} мм</span>
+                                  <span className="text-muted-foreground">{pipe.grade}, {pipe.weight} кг/м</span>
+                                </div>
+                              ))}
+                            </div>
+                          </ScrollArea>
+                        </div>
+
+                        {/* БТС */}
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2 p-2 bg-green-500/10 rounded">
+                            <Icon name="Factory" size={16} className="text-green-600" />
+                            <span className="font-semibold">БТС (Белорецкий ТЗ)</span>
+                          </div>
+                          <ScrollArea className="h-[80px]">
+                            <div className="space-y-1 text-xs pr-3">
+                              {RUSSIAN_PIPES.filter(p => p.manufacturer === 'БТС').slice(0, 3).map((pipe, idx) => (
+                                <div key={idx} className="flex justify-between p-1 hover:bg-muted/50 rounded">
+                                  <span className="font-mono">{pipe.outerDiameter}×{pipe.wallThickness} мм</span>
+                                  <span className="text-muted-foreground">{pipe.grade}, {pipe.weight} кг/м</span>
+                                </div>
+                              ))}
+                            </div>
+                          </ScrollArea>
+                        </div>
+
+                        {/* ТМК */}
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2 p-2 bg-orange-500/10 rounded">
+                            <Icon name="Factory" size={16} className="text-orange-600" />
+                            <span className="font-semibold">ТМК (Трубная МК)</span>
+                          </div>
+                          <ScrollArea className="h-[80px]">
+                            <div className="space-y-1 text-xs pr-3">
+                              {RUSSIAN_PIPES.filter(p => p.manufacturer === 'ТМК').slice(0, 3).map((pipe, idx) => (
+                                <div key={idx} className="flex justify-between p-1 hover:bg-muted/50 rounded">
+                                  <span className="font-mono">{pipe.outerDiameter}×{pipe.wallThickness} мм</span>
+                                  <span className="text-muted-foreground">{pipe.grade}, {pipe.weight} кг/м</span>
+                                </div>
+                              ))}
+                            </div>
+                          </ScrollArea>
+                        </div>
+
+                        {/* Марки стали */}
+                        <div className="p-3 bg-muted/50 rounded border">
+                          <div className="font-semibold mb-2 text-sm">Марки стали по ГОСТ</div>
+                          <div className="space-y-2 text-xs">
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">Д (ст. 20):</span>
+                              <span className="font-mono font-semibold">379 МПа</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">Е (ст. 30ХГСА):</span>
+                              <span className="font-mono font-semibold">517 МПа</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">К (ст. 38ХА):</span>
+                              <span className="font-mono font-semibold">655 МПа</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
                     </TabsContent>
                     <TabsContent value="operations" className="space-y-3 mt-4">
                       <div className="space-y-3">
@@ -1367,11 +1599,16 @@ export default function Index() {
             <div className="flex flex-col md:flex-row items-center justify-between gap-4 text-sm text-muted-foreground">
               <div className="flex items-center gap-2">
                 <Icon name="Shield" size={16} />
-                <span>Расчеты выполнены по стандартам American Petroleum Institute</span>
+                <span>Расчеты по стандартам API и ГОСТ</span>
               </div>
-              <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2 flex-wrap justify-center">
                 <Badge variant="secondary" className="font-mono">API 5CT</Badge>
                 <Badge variant="secondary" className="font-mono">API 5C3</Badge>
+                <Badge variant="secondary" className="font-mono">ГОСТ Р 51906</Badge>
+                <Badge variant="outline" className="text-xs">
+                  <Icon name="Factory" size={12} className="mr-1" />
+                  24 российских труб
+                </Badge>
               </div>
             </div>
           </div>
