@@ -555,34 +555,138 @@ export default function Index() {
 
   const russianPipesByManufacturer = RUSSIAN_PIPES.filter(p => p.manufacturer === selectedManufacturer);
 
+  const [activeModule, setActiveModule] = useState<'main' | 'design' | 'torque' | 'hydraulics' | 'reports'>('main');
+
   return (
-    <div className="min-h-screen bg-background engineering-grid-accent">
-      <div className="engineering-grid min-h-screen">
-        <header className="border-b bg-card/50 backdrop-blur-sm sticky top-0 z-10">
-          <div className="container mx-auto px-4 py-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-primary rounded flex items-center justify-center">
-                  <Icon name="Drill" className="text-primary-foreground" size={24} />
-                </div>
-                <div>
-                  <h1 className="text-2xl font-bold text-foreground">API Casing Calculator</h1>
-                  <p className="text-sm text-muted-foreground">Расчет параметров обсадных труб по стандартам API 5CT и ГОСТ Р 51906</p>
-                </div>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900">
+      <div className="flex h-screen">
+        {/* Левое меню - навигация как в Casing Driller */}
+        <aside className="w-64 bg-slate-900 text-slate-100 flex flex-col">
+          {/* Логотип */}
+          <div className="p-4 border-b border-slate-700">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-700 rounded-lg flex items-center justify-center shadow-lg">
+                <Icon name="Drill" className="text-white" size={24} />
               </div>
-              <div className="flex items-center gap-2">
-                <Badge variant="secondary" className="gap-1">
-                  <Icon name="Factory" size={12} />
-                  ОТТМ • БТС • ТМК
-                </Badge>
-                <Badge variant="outline" className="font-mono">v2.5</Badge>
+              <div>
+                <h1 className="text-lg font-bold">Casing Designer</h1>
+                <p className="text-xs text-slate-400">Pro Edition v3.0</p>
               </div>
             </div>
           </div>
-        </header>
 
-        <main className="container mx-auto px-4 py-8">
-          <div className="grid lg:grid-cols-3 gap-6">
+          {/* Главное меню */}
+          <nav className="flex-1 p-3 space-y-1">
+            <button
+              onClick={() => setActiveModule('main')}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${
+                activeModule === 'main'
+                  ? 'bg-blue-600 text-white shadow-lg'
+                  : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+              }`}
+            >
+              <Icon name="Home" size={20} />
+              <span className="font-medium">Главная</span>
+            </button>
+
+            <button
+              onClick={() => setActiveModule('design')}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${
+                activeModule === 'design'
+                  ? 'bg-blue-600 text-white shadow-lg'
+                  : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+              }`}
+            >
+              <Icon name="Layers" size={20} />
+              <span className="font-medium">Проектирование</span>
+            </button>
+
+            <button
+              onClick={() => setActiveModule('torque')}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${
+                activeModule === 'torque'
+                  ? 'bg-blue-600 text-white shadow-lg'
+                  : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+              }`}
+            >
+              <Icon name="Gauge" size={20} />
+              <span className="font-medium">Torque & Drag</span>
+            </button>
+
+            <button
+              onClick={() => setActiveModule('hydraulics')}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${
+                activeModule === 'hydraulics'
+                  ? 'bg-blue-600 text-white shadow-lg'
+                  : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+              }`}
+            >
+              <Icon name="Droplets" size={20} />
+              <span className="font-medium">Гидравлика</span>
+            </button>
+
+            <button
+              onClick={() => setActiveModule('reports')}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${
+                activeModule === 'reports'
+                  ? 'bg-blue-600 text-white shadow-lg'
+                  : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+              }`}
+            >
+              <Icon name="FileText" size={20} />
+              <span className="font-medium">Отчеты</span>
+            </button>
+          </nav>
+
+          {/* Информация о стандартах */}
+          <div className="p-4 border-t border-slate-700 space-y-2">
+            <div className="text-xs text-slate-400">Стандарты:</div>
+            <div className="flex flex-wrap gap-1">
+              <Badge variant="secondary" className="text-xs">API 5CT</Badge>
+              <Badge variant="secondary" className="text-xs">ГОСТ</Badge>
+            </div>
+          </div>
+        </aside>
+
+        {/* Правая часть - контент */}
+        <div className="flex-1 flex flex-col overflow-hidden">
+          {/* Верхняя панель инструментов */}
+          <header className="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 px-6 py-3">
+            <div className="flex items-center justify-between">
+
+              <div className="flex items-center gap-4">
+                <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100">
+                  {activeModule === 'main' && 'Главная панель'}
+                  {activeModule === 'design' && 'Проектирование обсадной колонны'}
+                  {activeModule === 'torque' && 'Анализ Torque & Drag'}
+                  {activeModule === 'hydraulics' && 'Гидравлический расчет'}
+                  {activeModule === 'reports' && 'Генерация отчетов'}
+                </h2>
+              </div>
+              <div className="flex items-center gap-3">
+                <Badge variant="outline" className="gap-1">
+                  <Icon name="Factory" size={12} />
+                  ОТТМ • БТС • ТМК
+                </Badge>
+                {calculations.length > 0 && (
+                  <ExportReport 
+                    calculation={calculations[0]}
+                    projectName="Расчет обсадной колонны"
+                    wellName="Скважина-1"
+                    depth={depth}
+                    mudWeight={mudWeight}
+                    wallThickness={wallThickness}
+                    bitType={bitType}
+                  />
+                )}
+              </div>
+            </div>
+          </header>
+
+          {/* Основной контент с прокруткой */}
+          <main className="flex-1 overflow-y-auto p-6">
+            {activeModule === 'main' && (
+              <div className="grid lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2 space-y-6">
               <Card className="border-2">
                 <CardHeader>
@@ -1851,30 +1955,153 @@ export default function Index() {
                   </CardContent>
                 </Card>
               )}
+              </div>
             </div>
-          </div>
-        </main>
+            )}
 
-        <footer className="border-t bg-card/50 backdrop-blur-sm mt-12">
-          <div className="container mx-auto px-4 py-6">
-            <div className="flex flex-col md:flex-row items-center justify-between gap-4 text-sm text-muted-foreground">
-              <div className="flex items-center gap-2">
-                <Icon name="Shield" size={16} />
-                <span>Расчеты по стандартам API и ГОСТ</span>
+            {activeModule === 'design' && (
+              <div className="space-y-6">
+                <Card className="border-2">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Icon name="Layers" size={20} />
+                      Проектирование обсадной колонны
+                    </CardTitle>
+                    <CardDescription>Многосекционный дизайн колонны с оптимизацией</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-center py-12 text-muted-foreground">
+                      <Icon name="Construction" size={48} className="mx-auto mb-4 opacity-50" />
+                      <p>Модуль проектирования в разработке</p>
+                      <p className="text-sm mt-2">Здесь будет конструктор многосекционной колонны</p>
+                    </div>
+                  </CardContent>
+                </Card>
               </div>
-              <div className="flex items-center gap-2 flex-wrap justify-center">
-                <Badge variant="secondary" className="font-mono">API 5CT</Badge>
-                <Badge variant="secondary" className="font-mono">API 5C3</Badge>
-                <Badge variant="secondary" className="font-mono">ГОСТ Р 51906</Badge>
-                <Badge variant="outline" className="text-xs">
-                  <Icon name="Factory" size={12} className="mr-1" />
-                  24 российских труб
-                </Badge>
+            )}
+
+            {activeModule === 'torque' && (
+              <div className="space-y-6">
+                {torqueDepthData.length > 0 ? (
+                  <>
+                    {calculations[0]?.connections && (
+                      <TorqueDepthChart 
+                        data={torqueDepthData} 
+                        maxTorque={calculations[0].connections.maxTorqueConnection}
+                      />
+                    )}
+                    <TripTorqueTable data={tripTorqueData} />
+                  </>
+                ) : (
+                  <Card className="border-2">
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Icon name="Gauge" size={20} />
+                        Анализ Torque & Drag
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-center py-12 text-muted-foreground">
+                        <Icon name="AlertCircle" size={48} className="mx-auto mb-4 opacity-50" />
+                        <p>Выполните расчет на главной панели</p>
+                        <p className="text-sm mt-2">Данные Torque & Drag появятся после расчета</p>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
               </div>
-            </div>
-          </div>
-        </footer>
+            )}
+
+            {activeModule === 'hydraulics' && (
+              <div className="space-y-6">
+                {hydraulicsParams ? (
+                  <>
+                    <HydraulicsTable params={hydraulicsParams} />
+                    {ecdData.length > 0 && <ECDChart data={ecdData} />}
+                    {cleaningData.length > 0 && <HoleCleaningChart data={cleaningData} />}
+                  </>
+                ) : (
+                  <Card className="border-2">
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Icon name="Droplets" size={20} />
+                        Гидравлический расчет
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-center py-12 text-muted-foreground">
+                        <Icon name="AlertCircle" size={48} className="mx-auto mb-4 opacity-50" />
+                        <p>Включите гидравлику и добавьте насадки</p>
+                        <p className="text-sm mt-2">Расширенные гидравлические данные появятся после расчета</p>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+              </div>
+            )}
+
+            {activeModule === 'reports' && (
+              <div className="space-y-6">
+                <Card className="border-2">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Icon name="FileText" size={20} />
+                      Генерация отчетов
+                    </CardTitle>
+                    <CardDescription>Экспорт расчетов в различные форматы</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    {calculations.length > 0 ? (
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg border">
+                          <div>
+                            <div className="font-semibold">Последний расчет</div>
+                            <div className="text-sm text-muted-foreground">
+                              {calculations[0].timestamp.toLocaleString('ru-RU')}
+                            </div>
+                          </div>
+                          <ExportReport 
+                            calculation={calculations[0]}
+                            projectName="Расчет обсадной колонны"
+                            wellName="Скважина-1"
+                            depth={depth}
+                            mudWeight={mudWeight}
+                            wallThickness={wallThickness}
+                            bitType={bitType}
+                          />
+                        </div>
+                        <div className="grid md:grid-cols-2 gap-4">
+                          <div className="p-4 bg-primary/5 rounded-lg border">
+                            <div className="flex items-center gap-2 mb-2">
+                              <Icon name="FileText" size={20} className="text-primary" />
+                              <span className="font-semibold">PDF отчет</span>
+                            </div>
+                            <p className="text-sm text-muted-foreground">Полный отчет с таблицами и графиками</p>
+                          </div>
+                          <div className="p-4 bg-accent/5 rounded-lg border">
+                            <div className="flex items-center gap-2 mb-2">
+                              <Icon name="FileDown" size={20} className="text-accent" />
+                              <span className="font-semibold">Word документ</span>
+                            </div>
+                            <p className="text-sm text-muted-foreground">Редактируемый документ для печати</p>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-center py-12 text-muted-foreground">
+                        <Icon name="FileX" size={48} className="mx-auto mb-4 opacity-50" />
+                        <p>Нет доступных расчетов</p>
+                        <p className="text-sm mt-2">Выполните расчет на главной панели</p>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+          </main>
+        </div>
       </div>
     </div>
+
   );
 }
