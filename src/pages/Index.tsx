@@ -12,6 +12,14 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import TorqueChart from '@/components/TorqueChart';
 import CleaningChart from '@/components/CleaningChart';
 import LoadChart from '@/components/LoadChart';
+import NozzleConfig, { Nozzle } from '@/components/hydraulics/NozzleConfig';
+import HydraulicsTable, { HydraulicsParams } from '@/components/hydraulics/HydraulicsTable';
+import ExcelImport, { WellProfilePoint } from '@/components/wellProfile/ExcelImport';
+import TorqueDepthChart, { TorqueData } from '@/components/torque/TorqueDepthChart';
+import TripTorqueTable, { TripTorquePoint } from '@/components/torque/TripTorqueTable';
+import HoleCleaningChart, { CleaningPillowData } from '@/components/cleaning/HoleCleaningChart';
+import { RUSSIAN_PIPES, RussianPipe } from '@/data/russianPipes';
+import { UnitSystem, UNITS, convert, FrictionCoefficients, DEFAULT_FRICTION_COEFFICIENTS } from '@/utils/unitConversion';
 
 interface Calculation {
   id: string;
