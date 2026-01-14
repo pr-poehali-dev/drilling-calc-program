@@ -18,6 +18,22 @@ interface Calculation {
   weight: number;
   burst: number;
   collapse: number;
+  drilling?: DrillingCalc;
+  running?: RunningCalc;
+}
+
+interface DrillingCalc {
+  torque: number;
+  hookLoad: number;
+  drillingForce: number;
+  maxRPM: number;
+}
+
+interface RunningCalc {
+  runningLoad: number;
+  buoyantWeight: number;
+  dragForce: number;
+  maxRunningSpeed: number;
 }
 
 interface PipeData {
@@ -52,7 +68,12 @@ export default function Index() {
   const [outerDiameter, setOuterDiameter] = useState<string>('9.625');
   const [wallThickness, setWallThickness] = useState<string>('0.352');
   const [weight, setWeight] = useState<string>('36.0');
+  const [depth, setDepth] = useState<string>('5000');
+  const [mudWeight, setMudWeight] = useState<string>('10.5');
+  const [bitDiameter, setBitDiameter] = useState<string>('8.5');
+  const [rpm, setRpm] = useState<string>('60');
   const [calculations, setCalculations] = useState<Calculation[]>([]);
+  const [calculationType, setCalculationType] = useState<'pressure' | 'drilling' | 'running'>('pressure');
 
   const calculateBurstPressure = (od: number, wt: number, grade: string): number => {
     const yieldStrength = API_PIPE_GRADES[grade as keyof typeof API_PIPE_GRADES].yield;
@@ -72,15 +93,65 @@ export default function Index() {
     }
   };
 
+  const calculateDrillingParams = (od: number, wt: number, grade: string, depth: number, rpm: number, bitDia: number): DrillingCalc => {
+    const yieldStrength = API_PIPE_GRADES[grade as keyof typeof API_PIPE_GRADES].yield;
+    const area = Math.PI * ((od * od) - ((od - 2 * wt) * (od - 2 * wt))) / 4;
+    const pipeWeight = parseFloat(weight);
+    
+    const torque = (od / 12) * (yieldStrength * area * 0.5) / 1000;
+    const hookLoad = (pipeWeight * depth) * 1.15;
+    const drillingForce = (bitDia * bitDia * 0.785) * (yieldStrength * 0.7);
+    const maxRPM = Math.min(120, 300000 / (od * depth));
+    
+    return {
+      torque: Math.round(torque),
+      hookLoad: Math.round(hookLoad),
+      drillingForce: Math.round(drillingForce),
+      maxRPM: Math.round(maxRPM)
+    };
+  };
+
+  const calculateRunningParams = (od: number, depth: number, mudWt: number, pipeWt: number): RunningCalc => {
+    const steelDensity = 490;
+    const buoyancyFactor = 1 - (mudWt / 65.5);
+    
+    const runningLoad = (pipeWt * depth) * 1.2;
+    const buoyantWeight = (pipeWt * depth) * buoyancyFactor;
+    const dragForce = buoyantWeight * 0.25;
+    const maxRunningSpeed = Math.max(30, 180 - (depth / 100));
+    
+    return {
+      runningLoad: Math.round(runningLoad),
+      buoyantWeight: Math.round(buoyantWeight),
+      dragForce: Math.round(dragForce),
+      maxRunningSpeed: Math.round(maxRunningSpeed)
+    };
+  };
+
   const handleCalculate = () => {
     const od = parseFloat(outerDiameter);
     const wt = parseFloat(wallThickness);
     const w = parseFloat(weight);
+    const d = parseFloat(depth);
+    const mw = parseFloat(mudWeight);
+    const bd = parseFloat(bitDiameter);
+    const r = parseFloat(rpm);
 
     if (!od || !wt || !w || !selectedGrade) return;
 
     const burst = calculateBurstPressure(od, wt, selectedGrade);
     const collapse = calculateCollapsePressure(od, wt, selectedGrade);
+    
+    let drilling: DrillingCalc | undefined;
+    let running: RunningCalc | undefined;
+    
+    if (calculationType === 'drilling' && d && r && bd) {
+      drilling = calculateDrillingParams(od, wt, selectedGrade, d, r, bd);
+    }
+    
+    if (calculationType === 'running' && d && mw) {
+      running = calculateRunningParams(od, d, mw, w);
+    }
 
     const newCalc: Calculation = {
       id: Date.now().toString(),
@@ -90,6 +161,8 @@ export default function Index() {
       weight: w,
       burst: Math.round(burst),
       collapse: Math.round(collapse),
+      drilling,
+      running
     };
 
     setCalculations([newCalc, ...calculations.slice(0, 9)]);
@@ -218,6 +291,115 @@ export default function Index() {
 
                   <Separator />
 
+                  <div className="space-y-4">
+                    <Label className="text-sm font-semibold">Тип расчета:</Label>
+                    <div className="grid grid-cols-3 gap-2">
+                      <Button
+                        variant={calculationType === 'pressure' ? 'default' : 'outline'}
+                        onClick={() => setCalculationType('pressure')}
+                        className="flex flex-col h-auto py-3"
+                      >
+                        <Icon name="Gauge" size={20} className="mb-1" />
+                        <span className="text-xs">Прочность</span>
+                      </Button>
+                      <Button
+                        variant={calculationType === 'drilling' ? 'default' : 'outline'}
+                        onClick={() => setCalculationType('drilling')}
+                        className="flex flex-col h-auto py-3"
+                      >
+                        <Icon name="Drill" size={20} className="mb-1" />
+                        <span className="text-xs">Бурение</span>
+                      </Button>
+                      <Button
+                        variant={calculationType === 'running' ? 'default' : 'outline'}
+                        onClick={() => setCalculationType('running')}
+                        className="flex flex-col h-auto py-3"
+                      >
+                        <Icon name="MoveDown" size={20} className="mb-1" />
+                        <span className="text-xs">Спуск</span>
+                      </Button>
+                    </div>
+                  </div>
+
+                  {calculationType === 'drilling' && (
+                    <div className="grid md:grid-cols-3 gap-4 p-4 bg-accent/5 rounded-lg border border-accent/20">
+                      <div className="space-y-2">
+                        <Label htmlFor="depth" className="flex items-center gap-2 text-xs">
+                          <Icon name="ArrowDown" size={14} />
+                          Глубина (ft)
+                        </Label>
+                        <Input
+                          id="depth"
+                          type="number"
+                          value={depth}
+                          onChange={(e) => setDepth(e.target.value)}
+                          className="font-mono"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="rpm" className="flex items-center gap-2 text-xs">
+                          <Icon name="RotateCw" size={14} />
+                          Обороты (RPM)
+                        </Label>
+                        <Input
+                          id="rpm"
+                          type="number"
+                          value={rpm}
+                          onChange={(e) => setRpm(e.target.value)}
+                          className="font-mono"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="bitDiameter" className="flex items-center gap-2 text-xs">
+                          <Icon name="CircleDot" size={14} />
+                          Диаметр башмака (")
+                        </Label>
+                        <Input
+                          id="bitDiameter"
+                          type="number"
+                          step="0.1"
+                          value={bitDiameter}
+                          onChange={(e) => setBitDiameter(e.target.value)}
+                          className="font-mono"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {calculationType === 'running' && (
+                    <div className="grid md:grid-cols-2 gap-4 p-4 bg-primary/5 rounded-lg border border-primary/20">
+                      <div className="space-y-2">
+                        <Label htmlFor="depth2" className="flex items-center gap-2 text-xs">
+                          <Icon name="ArrowDown" size={14} />
+                          Глубина спуска (ft)
+                        </Label>
+                        <Input
+                          id="depth2"
+                          type="number"
+                          value={depth}
+                          onChange={(e) => setDepth(e.target.value)}
+                          className="font-mono"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="mudWeight" className="flex items-center gap-2 text-xs">
+                          <Icon name="Droplet" size={14} />
+                          Плотность раствора (ppg)
+                        </Label>
+                        <Input
+                          id="mudWeight"
+                          type="number"
+                          step="0.1"
+                          value={mudWeight}
+                          onChange={(e) => setMudWeight(e.target.value)}
+                          className="font-mono"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  <Separator />
+
                   <Button onClick={handleCalculate} className="w-full" size="lg">
                     <Icon name="Play" size={18} className="mr-2" />
                     Выполнить расчет
@@ -260,6 +442,74 @@ export default function Index() {
                       </div>
                     </div>
 
+                    {calculations[0].drilling && (
+                      <>
+                        <Separator className="my-4" />
+                        <div className="space-y-3">
+                          <h4 className="font-semibold flex items-center gap-2">
+                            <Icon name="Drill" size={18} />
+                            Параметры бурения
+                          </h4>
+                          <div className="grid md:grid-cols-2 gap-4">
+                            <div className="p-3 bg-accent/5 rounded border">
+                              <div className="text-sm text-muted-foreground mb-1">Крутящий момент</div>
+                              <div className="text-2xl font-bold font-mono">{calculations[0].drilling.torque.toLocaleString()}</div>
+                              <div className="text-xs text-muted-foreground">ft-lbs</div>
+                            </div>
+                            <div className="p-3 bg-accent/5 rounded border">
+                              <div className="text-sm text-muted-foreground mb-1">Нагрузка на крюк</div>
+                              <div className="text-2xl font-bold font-mono">{calculations[0].drilling.hookLoad.toLocaleString()}</div>
+                              <div className="text-xs text-muted-foreground">lbs</div>
+                            </div>
+                            <div className="p-3 bg-accent/5 rounded border">
+                              <div className="text-sm text-muted-foreground mb-1">Усилие на башмаке</div>
+                              <div className="text-2xl font-bold font-mono">{calculations[0].drilling.drillingForce.toLocaleString()}</div>
+                              <div className="text-xs text-muted-foreground">lbs</div>
+                            </div>
+                            <div className="p-3 bg-accent/5 rounded border">
+                              <div className="text-sm text-muted-foreground mb-1">Макс. обороты</div>
+                              <div className="text-2xl font-bold font-mono">{calculations[0].drilling.maxRPM}</div>
+                              <div className="text-xs text-muted-foreground">RPM</div>
+                            </div>
+                          </div>
+                        </div>
+                      </>
+                    )}
+
+                    {calculations[0].running && (
+                      <>
+                        <Separator className="my-4" />
+                        <div className="space-y-3">
+                          <h4 className="font-semibold flex items-center gap-2">
+                            <Icon name="MoveDown" size={18} />
+                            Параметры спуска
+                          </h4>
+                          <div className="grid md:grid-cols-2 gap-4">
+                            <div className="p-3 bg-primary/5 rounded border">
+                              <div className="text-sm text-muted-foreground mb-1">Нагрузка при спуске</div>
+                              <div className="text-2xl font-bold font-mono">{calculations[0].running.runningLoad.toLocaleString()}</div>
+                              <div className="text-xs text-muted-foreground">lbs (с запасом)</div>
+                            </div>
+                            <div className="p-3 bg-primary/5 rounded border">
+                              <div className="text-sm text-muted-foreground mb-1">Вес в растворе</div>
+                              <div className="text-2xl font-bold font-mono">{calculations[0].running.buoyantWeight.toLocaleString()}</div>
+                              <div className="text-xs text-muted-foreground">lbs (с учетом выталкивания)</div>
+                            </div>
+                            <div className="p-3 bg-primary/5 rounded border">
+                              <div className="text-sm text-muted-foreground mb-1">Сила трения</div>
+                              <div className="text-2xl font-bold font-mono">{calculations[0].running.dragForce.toLocaleString()}</div>
+                              <div className="text-xs text-muted-foreground">lbs</div>
+                            </div>
+                            <div className="p-3 bg-primary/5 rounded border">
+                              <div className="text-sm text-muted-foreground mb-1">Макс. скорость спуска</div>
+                              <div className="text-2xl font-bold font-mono">{calculations[0].running.maxRunningSpeed}</div>
+                              <div className="text-xs text-muted-foreground">ft/min</div>
+                            </div>
+                          </div>
+                        </div>
+                      </>
+                    )}
+
                     <Separator className="my-4" />
 
                     <div className="space-y-2">
@@ -301,8 +551,9 @@ export default function Index() {
                 </CardHeader>
                 <CardContent>
                   <Tabs defaultValue="grades" className="w-full">
-                    <TabsList className="grid w-full grid-cols-2">
+                    <TabsList className="grid w-full grid-cols-3">
                       <TabsTrigger value="grades">Марки</TabsTrigger>
+                      <TabsTrigger value="operations">Операции</TabsTrigger>
                       <TabsTrigger value="standards">Стандарты</TabsTrigger>
                     </TabsList>
                     <TabsContent value="grades" className="space-y-3 mt-4">
@@ -323,6 +574,43 @@ export default function Index() {
                           </div>
                         ))}
                       </ScrollArea>
+                    </TabsContent>
+                    <TabsContent value="operations" className="space-y-3 mt-4">
+                      <div className="space-y-3">
+                        <div className="p-3 bg-accent/10 rounded border border-accent/30">
+                          <div className="flex items-center gap-2 mb-2">
+                            <Icon name="Drill" size={16} className="text-accent" />
+                            <div className="font-semibold">Бурение с башмаком</div>
+                          </div>
+                          <div className="text-xs text-muted-foreground space-y-1">
+                            <div>• Обсадная колонна + башмак = бурильная колонна</div>
+                            <div>• Контроль крутящего момента и нагрузки</div>
+                            <div>• Ограничение оборотов по прочности</div>
+                          </div>
+                        </div>
+                        <div className="p-3 bg-primary/10 rounded border border-primary/30">
+                          <div className="flex items-center gap-2 mb-2">
+                            <Icon name="MoveDown" size={16} className="text-primary" />
+                            <div className="font-semibold">Спуск колонны</div>
+                          </div>
+                          <div className="text-xs text-muted-foreground space-y-1">
+                            <div>• Учет выталкивающей силы раствора</div>
+                            <div>• Расчет сил трения о стенки</div>
+                            <div>• Контроль скорости спуска</div>
+                          </div>
+                        </div>
+                        <div className="p-3 bg-muted/50 rounded border">
+                          <div className="flex items-center gap-2 mb-2">
+                            <Icon name="AlertTriangle" size={16} />
+                            <div className="font-semibold">Критические факторы</div>
+                          </div>
+                          <div className="text-xs text-muted-foreground space-y-1">
+                            <div>• Прочность на разрыв и смятие</div>
+                            <div>• Усталостные напряжения при вращении</div>
+                            <div>• Гидродинамическое давление</div>
+                          </div>
+                        </div>
+                      </div>
                     </TabsContent>
                     <TabsContent value="standards" className="space-y-3 mt-4">
                       <div className="space-y-3">
@@ -384,6 +672,18 @@ export default function Index() {
                                 <div className="font-mono font-semibold">{calc.collapse.toLocaleString()}</div>
                               </div>
                             </div>
+                            {calc.drilling && (
+                              <div className="mt-2 pt-2 border-t flex items-center gap-1 text-xs text-accent">
+                                <Icon name="Drill" size={12} />
+                                <span>Бурение: {calc.drilling.maxRPM} RPM макс.</span>
+                              </div>
+                            )}
+                            {calc.running && (
+                              <div className="mt-2 pt-2 border-t flex items-center gap-1 text-xs text-primary">
+                                <Icon name="MoveDown" size={12} />
+                                <span>Спуск: {calc.running.maxRunningSpeed} ft/min макс.</span>
+                              </div>
+                            )}
                           </div>
                         ))}
                       </div>
