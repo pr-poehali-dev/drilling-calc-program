@@ -21,6 +21,7 @@ import TorqueDepthChart, { TorqueData } from '@/components/torque/TorqueDepthCha
 import TripTorqueTable, { TripTorquePoint } from '@/components/torque/TripTorqueTable';
 import HoleCleaningChart, { CleaningPillowData } from '@/components/cleaning/HoleCleaningChart';
 import ECDChart, { ECDData } from '@/components/ecd/ECDChart';
+import ExportReport from '@/components/export/ExportReport';
 import { RUSSIAN_PIPES, RussianPipe } from '@/data/russianPipes';
 import { UnitSystem, UNITS, convert, FrictionCoefficients, DEFAULT_FRICTION_COEFFICIENTS } from '@/utils/unitConversion';
 
@@ -127,6 +128,8 @@ export default function Index() {
   const [maxTorque, setMaxTorque] = useState<string>('25');
   const [frictionOpenHole, setFrictionOpenHole] = useState<string>('0.35');
   const [frictionCased, setFrictionCased] = useState<string>('0.25');
+  const [bitTorque, setBitTorque] = useState<string>('5.0');
+  const [bitType, setBitType] = useState<string>('PDC');
   const [calculations, setCalculations] = useState<Calculation[]>([]);
   const [calculationType, setCalculationType] = useState<'pressure' | 'drilling' | 'running' | 'hydraulics'>('pressure');
   const [showCharts, setShowCharts] = useState(false);
@@ -160,7 +163,7 @@ export default function Index() {
     }
   };
 
-  const calculateDrillingParams = (od: number, wt: number, grade: string, depth: number, rpm: number, bitDia: number, axLoad: number, mudDensity: number, frictionCoeff: number, maxTorqueInput: number): DrillingCalc => {
+  const calculateDrillingParams = (od: number, wt: number, grade: string, depth: number, rpm: number, bitDia: number, axLoad: number, mudDensity: number, frictionCoeff: number, maxTorqueInput: number, bitTorqueInput: number): DrillingCalc => {
     const yieldStrength = API_PIPE_GRADES[grade as keyof typeof API_PIPE_GRADES].yield * 6.895;
     const area = Math.PI * (Math.pow(od / 1000, 2) - Math.pow((od - 2 * wt) / 1000, 2)) / 4;
     const pipeWeight = parseFloat(weight);
@@ -170,7 +173,8 @@ export default function Index() {
     
     const wobKN = axLoad * 9.81;
     
-    const torque = (weightInMud * frictionCoeff * (od / 1000) / 2) + (wobKN * frictionCoeff * (bitDia / 1000) / 2);
+    const pipeFrictionTorque = (weightInMud * frictionCoeff * (od / 1000) / 2);
+    const torque = pipeFrictionTorque + bitTorqueInput;
     const hookLoad = weightInMud + (frictionCoeff * weightInMud) + wobKN;
     const drillingForce = wobKN;
     const maxRPM = Math.min(120, Math.sqrt((maxTorqueInput * 1000) / (0.05 * od * depth / 1000)));
@@ -183,7 +187,8 @@ export default function Index() {
       maxRPM: Math.round(maxRPM),
       axialLoad: Math.round(wobKN * 10) / 10,
       mechanicalSpeed: Math.round(mechanicalSpeed * 1000) / 1000,
-      wob: wobKN
+      wob: wobKN,
+      bitTorque: bitTorqueInput
     };
   };
 
@@ -469,7 +474,8 @@ export default function Index() {
     const maxT = parseFloat(maxTorque);
     
     if (calculationType === 'drilling' && d && r && bd) {
-      drilling = calculateDrillingParams(od, wt, selectedGrade, d, r, bd, axLoad, mw, frCoeff, maxT);
+      const bt = parseFloat(bitTorque);
+      drilling = calculateDrillingParams(od, wt, selectedGrade, d, r, bd, axLoad, mw, frCoeff, maxT, bt);
     }
     
     if (calculationType === 'running' && d && mw && wd) {
@@ -914,6 +920,47 @@ export default function Index() {
                     </div>
                   )}
 
+                  {calculationType === 'drilling' && (
+                    <div className="grid md:grid-cols-3 gap-4 p-4 bg-blue-500/5 rounded-lg border border-blue-500/20">
+                      <div className="space-y-2">
+                        <Label htmlFor="bitType" className="flex items-center gap-2 text-xs">
+                          <Icon name="Settings" size={14} />
+                          Тип долота
+                        </Label>
+                        <Select value={bitType} onValueChange={setBitType}>
+                          <SelectTrigger id="bitType">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="PDC">PDC (Polycrystalline Diamond)</SelectItem>
+                            <SelectItem value="Roller">Шарошечное</SelectItem>
+                            <SelectItem value="Diamond">Алмазное</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="bitTorque" className="flex items-center gap-2 text-xs">
+                          <Icon name="Gauge" size={14} />
+                          Момент на долоте (кН·м)
+                        </Label>
+                        <Input
+                          id="bitTorque"
+                          type="number"
+                          step="0.5"
+                          value={bitTorque}
+                          onChange={(e) => setBitTorque(e.target.value)}
+                          className="font-mono"
+                        />
+                      </div>
+                      <div className="p-3 bg-muted/30 rounded border">
+                        <div className="text-xs text-muted-foreground mb-1">Рекомендуемый момент:</div>
+                        <div className="font-mono font-bold text-sm">
+                          {bitType === 'PDC' ? '3.0-8.0' : bitType === 'Roller' ? '2.0-5.0' : '4.0-10.0'} кН·м
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   {calculationType === 'hydraulics' && (
                     <div className="grid md:grid-cols-3 gap-4 p-4 bg-primary/5 rounded-lg border border-primary/20">
                       <div className="space-y-2">
@@ -1002,10 +1049,21 @@ export default function Index() {
               {calculations.length > 0 && (
                 <Card className="border-2">
                   <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Icon name="LineChart" size={20} />
-                      Результаты расчета
-                    </CardTitle>
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="flex items-center gap-2">
+                        <Icon name="LineChart" size={20} />
+                        Результаты расчета
+                      </CardTitle>
+                      <ExportReport 
+                        calculation={calculations[0]}
+                        projectName="Расчет обсадной колонны"
+                        wellName="Скважина-1"
+                        depth={depth}
+                        mudWeight={mudWeight}
+                        wallThickness={wallThickness}
+                        bitType={bitType}
+                      />
+                    </div>
                   </CardHeader>
                   <CardContent>
                     <div className="grid md:grid-cols-2 gap-4">
@@ -1044,9 +1102,14 @@ export default function Index() {
                           </h4>
                           <div className="grid md:grid-cols-2 gap-4">
                             <div className="p-3 bg-accent/5 rounded border">
-                              <div className="text-sm text-muted-foreground mb-1">Крутящий момент</div>
+                              <div className="text-sm text-muted-foreground mb-1">Крутящий момент (поверхность)</div>
                               <div className="text-2xl font-bold font-mono">{calculations[0].drilling.torque.toLocaleString()}</div>
                               <div className="text-xs text-muted-foreground">кН·м</div>
+                            </div>
+                            <div className="p-3 bg-blue-500/10 rounded border border-blue-500/30">
+                              <div className="text-sm text-muted-foreground mb-1">Крутящий момент на долоте</div>
+                              <div className="text-2xl font-bold font-mono">{(calculations[0].drilling.bitTorque || 0).toLocaleString()}</div>
+                              <div className="text-xs text-muted-foreground">кН·м (PDC)</div>
                             </div>
                             <div className="p-3 bg-accent/5 rounded border">
                               <div className="text-sm text-muted-foreground mb-1">Нагрузка на крюк</div>
