@@ -1,5 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import Icon from '@/components/ui/icon';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine } from 'recharts';
 
 interface TorqueChartProps {
   currentTorque: number;
@@ -8,88 +9,105 @@ interface TorqueChartProps {
 }
 
 export default function TorqueChart({ currentTorque, maxTorque, depth }: TorqueChartProps) {
-  const depthPoints = 10;
+  const depthPoints = 20;
   const depthStep = depth / depthPoints;
   
   const torqueData = Array.from({ length: depthPoints + 1 }, (_, i) => {
-    const d = i * depthStep;
+    const d = Math.round(i * depthStep);
     const torque = currentTorque * (1 + (d / depth) * 0.3);
-    return { depth: d, torque, max: maxTorque };
+    return { 
+      depth: d, 
+      torque: parseFloat(torque.toFixed(2)),
+      maxTorque: maxTorque,
+      safetyMargin: parseFloat((maxTorque - torque).toFixed(2))
+    };
   });
 
-  const maxValue = Math.max(...torqueData.map(d => d.torque), maxTorque);
+  const safetyFactor = maxTorque / currentTorque;
+  const isOverLimit = torqueData.some(d => d.torque > maxTorque);
   
   return (
     <Card className="border-2">
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-base">
           <Icon name="TrendingUp" size={18} />
-          График крутящего момента
+          График крутящего момента по глубине
         </CardTitle>
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
-          <div className="relative h-64 border rounded-lg p-4 bg-muted/20">
-            <div className="absolute inset-4 flex items-end justify-between gap-1">
-              {torqueData.map((point, idx) => {
-                const heightPercent = (point.torque / maxValue) * 100;
-                const maxHeightPercent = (point.max / maxValue) * 100;
-                const isExceeded = point.torque > point.max;
-                
-                return (
-                  <div key={idx} className="flex-1 flex flex-col items-center justify-end h-full relative">
-                    <div 
-                      className="w-full bg-destructive/20 border-t-2 border-destructive/50 absolute bottom-0"
-                      style={{ height: `${maxHeightPercent}%` }}
-                    />
-                    <div 
-                      className={`w-full rounded-t transition-all ${
-                        isExceeded ? 'bg-destructive' : 'bg-accent'
-                      }`}
-                      style={{ height: `${heightPercent}%` }}
-                    >
-                      {idx % 2 === 0 && (
-                        <div className="text-[8px] font-mono text-center mt-1">
-                          {Math.round(point.torque)}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-            
-            <div className="absolute top-2 right-2 text-xs space-y-1">
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 bg-accent rounded" />
-                <span>Текущий момент</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 bg-destructive/20 border border-destructive/50" />
-                <span>Предельный момент</span>
-              </div>
-            </div>
-          </div>
-          
-          <div className="flex items-center justify-between text-xs text-muted-foreground">
-            <span>0 ft</span>
-            <span className="font-mono">Глубина</span>
-            <span>{depth} ft</span>
-          </div>
+          <ResponsiveContainer width="100%" height={300}>
+            <LineChart data={torqueData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+              <XAxis 
+                dataKey="depth" 
+                label={{ value: 'Глубина (м)', position: 'insideBottom', offset: -5 }}
+                className="text-xs"
+              />
+              <YAxis 
+                label={{ value: 'Крутящий момент (кН·м)', angle: -90, position: 'insideLeft' }}
+                className="text-xs"
+              />
+              <Tooltip 
+                contentStyle={{ backgroundColor: 'hsl(var(--background))', border: '1px solid hsl(var(--border))' }}
+                formatter={(value: number) => [`${value} кН·м`, '']}
+                labelFormatter={(label) => `Глубина: ${label} м`}
+              />
+              <Legend />
+              <ReferenceLine 
+                y={maxTorque} 
+                stroke="hsl(var(--destructive))" 
+                strokeDasharray="5 5" 
+                label={{ value: 'Предел', position: 'right', fill: 'hsl(var(--destructive))' }}
+              />
+              <Line 
+                type="monotone" 
+                dataKey="torque" 
+                stroke="hsl(var(--primary))" 
+                strokeWidth={2}
+                name="Текущий момент"
+                dot={{ r: 2 }}
+                activeDot={{ r: 5 }}
+              />
+            </LineChart>
+          </ResponsiveContainer>
 
-          <div className="grid grid-cols-2 gap-3 text-sm">
-            <div className="p-2 bg-accent/10 rounded border">
-              <div className="text-muted-foreground text-xs">Текущий момент</div>
-              <div className="font-mono font-bold">{Math.round(currentTorque)} Нм</div>
+          <div className="grid grid-cols-3 gap-3 text-sm">
+            <div className="p-3 bg-primary/10 rounded border">
+              <div className="text-muted-foreground text-xs mb-1">Текущий момент</div>
+              <div className="font-mono font-bold text-lg">{currentTorque.toFixed(1)} кН·м</div>
             </div>
-            <div className="p-2 bg-destructive/10 rounded border">
-              <div className="text-muted-foreground text-xs">Предельный момент</div>
-              <div className="font-mono font-bold">{Math.round(maxTorque)} Нм</div>
+            <div className="p-3 bg-destructive/10 rounded border">
+              <div className="text-muted-foreground text-xs mb-1">Предельный момент</div>
+              <div className="font-mono font-bold text-lg">{maxTorque.toFixed(1)} кН·м</div>
+            </div>
+            <div className={`p-3 rounded border ${
+              safetyFactor >= 1.5 ? 'bg-green-500/10 border-green-500/30' :
+              safetyFactor >= 1.2 ? 'bg-orange-500/10 border-orange-500/30' :
+              'bg-destructive/10 border-destructive/30'
+            }`}>
+              <div className="text-muted-foreground text-xs mb-1">Коэффициент запаса</div>
+              <div className="font-mono font-bold text-lg">{safetyFactor.toFixed(2)}</div>
             </div>
           </div>
           
-          <div className="text-xs text-muted-foreground border-t pt-2">
-            Коэффициент запаса: <span className="font-mono font-semibold">{(maxTorque / currentTorque).toFixed(2)}</span>
+          <div className="text-xs text-muted-foreground border-t pt-3">
+            {isOverLimit ? (
+              <div className="flex items-center gap-2 text-destructive">
+                <Icon name="AlertTriangle" size={14} />
+                <span className="font-semibold">ВНИМАНИЕ: Превышение допустимого момента!</span>
+              </div>
+            ) : safetyFactor >= 1.5 ? (
+              <div className="flex items-center gap-2 text-green-600">
+                <Icon name="CheckCircle" size={14} />
+                <span>Безопасный режим работы</span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 text-orange-600">
+                <Icon name="AlertCircle" size={14} />
+                <span>Ограниченный запас прочности</span>
+              </div>
+            )}
           </div>
         </div>
       </CardContent>

@@ -1,5 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import Icon from '@/components/ui/icon';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine, Cell } from 'recharts';
 
 interface LoadChartProps {
   hookLoad: number;
@@ -9,105 +10,100 @@ interface LoadChartProps {
 }
 
 export default function LoadChart({ hookLoad, buoyantWeight, dragForce, maxLoad }: LoadChartProps) {
-  const totalLoad = hookLoad + dragForce;
+  const totalLoad = hookLoad;
   const safetyFactor = maxLoad / totalLoad;
   
-  const loads = [
-    { name: 'Нагрузка на крюк', value: hookLoad, color: 'bg-primary' },
-    { name: 'Вес в растворе', value: buoyantWeight, color: 'bg-accent' },
-    { name: 'Сила трения', value: dragForce, color: 'bg-orange-500' },
+  const chartData = [
+    { name: 'Вес в растворе', value: buoyantWeight, color: 'hsl(var(--chart-1))' },
+    { name: 'Сила трения', value: dragForce, color: 'hsl(var(--chart-2))' },
+    { name: 'Нагрузка на крюк', value: hookLoad, color: 'hsl(var(--primary))' },
   ];
 
-  const maxValue = Math.max(maxLoad, totalLoad);
+  const utilizationPercent = (totalLoad / maxLoad) * 100;
   
   return (
     <Card className="border-2">
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-base">
           <Icon name="Weight" size={18} />
-          График нагрузок
+          Анализ нагрузок
         </CardTitle>
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
-          <div className="space-y-3">
-            {loads.map((load) => (
-              <div key={load.name} className="space-y-1">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-muted-foreground">{load.name}</span>
-                  <span className="font-mono font-semibold">{load.value.toLocaleString()} lbs</span>
-                </div>
-                <div className="relative h-6 bg-muted/20 rounded overflow-hidden">
-                  <div 
-                    className={`h-full ${load.color} transition-all flex items-center justify-end pr-2`}
-                    style={{ width: `${(load.value / maxValue) * 100}%` }}
-                  >
-                    <span className="text-white text-[10px] font-mono">
-                      {Math.round((load.value / maxValue) * 100)}%
-                    </span>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
+          <ResponsiveContainer width="100%" height={300}>
+            <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+              <XAxis 
+                dataKey="name" 
+                tick={{ fontSize: 11 }}
+                interval={0}
+                angle={0}
+                textAnchor="middle"
+              />
+              <YAxis 
+                label={{ value: 'Нагрузка (кН)', angle: -90, position: 'insideLeft' }}
+                tick={{ fontSize: 11 }}
+              />
+              <Tooltip 
+                contentStyle={{ backgroundColor: 'hsl(var(--background))', border: '1px solid hsl(var(--border))' }}
+                formatter={(value: number) => [`${value.toFixed(1)} кН`, '']}
+              />
+              <ReferenceLine 
+                y={maxLoad} 
+                stroke="hsl(var(--destructive))" 
+                strokeDasharray="5 5" 
+                label={{ value: `Предел: ${maxLoad.toFixed(0)} кН`, position: 'right', fill: 'hsl(var(--destructive))', fontSize: 11 }}
+              />
+              <Bar dataKey="value" radius={[8, 8, 0, 0]}>
+                {chartData.map((entry, index) => (
+                  <Cell key={`cell-${index}`} fill={entry.color} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
 
-          <div className="border-t pt-3 space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-semibold">Суммарная нагрузка</span>
-              <span className="font-mono font-bold text-lg">{totalLoad.toLocaleString()} lbs</span>
+          <div className="grid grid-cols-3 gap-3 text-sm">
+            <div className="p-3 bg-muted/50 rounded border text-center">
+              <div className="text-muted-foreground text-xs mb-1">Предельная нагрузка</div>
+              <div className="font-mono font-bold text-lg">{maxLoad.toFixed(1)}</div>
+              <div className="text-xs text-muted-foreground">кН</div>
             </div>
-
-            <div className="relative h-8 bg-muted/20 rounded overflow-hidden border-2">
-              <div 
-                className={`h-full transition-all flex items-center justify-center ${
-                  totalLoad > maxLoad ? 'bg-destructive' : 'bg-green-500'
-                }`}
-                style={{ width: `${Math.min((totalLoad / maxLoad) * 100, 100)}%` }}
-              >
-                <span className="text-white text-xs font-mono font-bold">
-                  {Math.round((totalLoad / maxLoad) * 100)}% от предела
-                </span>
-              </div>
-              <div className="absolute inset-0 flex items-center justify-end pr-2 pointer-events-none">
-                <Icon 
-                  name={totalLoad > maxLoad ? 'AlertTriangle' : 'CheckCircle'} 
-                  size={16} 
-                  className={totalLoad > maxLoad ? 'text-destructive' : 'text-green-600'}
-                />
-              </div>
+            <div className={`p-3 rounded border text-center ${
+              utilizationPercent > 100 ? 'bg-destructive/10 border-destructive/30' :
+              utilizationPercent > 80 ? 'bg-orange-500/10 border-orange-500/30' :
+              'bg-green-500/10 border-green-500/30'
+            }`}>
+              <div className="text-muted-foreground text-xs mb-1">Использование</div>
+              <div className="font-mono font-bold text-lg">{utilizationPercent.toFixed(0)}%</div>
+              <div className="text-xs text-muted-foreground">от предела</div>
             </div>
-
-            <div className="grid grid-cols-2 gap-3 text-sm">
-              <div className="p-2 bg-muted/50 rounded border">
-                <div className="text-muted-foreground text-xs">Предельная нагрузка</div>
-                <div className="font-mono font-bold">{maxLoad.toLocaleString()} lbs</div>
-              </div>
-              <div className={`p-2 rounded border ${
-                safetyFactor >= 1.5 ? 'bg-green-500/10 border-green-500/30' : 
-                safetyFactor >= 1.2 ? 'bg-orange-500/10 border-orange-500/30' : 
-                'bg-destructive/10 border-destructive/30'
-              }`}>
-                <div className="text-muted-foreground text-xs">Коэффициент запаса</div>
-                <div className="font-mono font-bold">{safetyFactor.toFixed(2)}</div>
-              </div>
+            <div className={`p-3 rounded border text-center ${
+              safetyFactor >= 1.5 ? 'bg-green-500/10 border-green-500/30' : 
+              safetyFactor >= 1.2 ? 'bg-orange-500/10 border-orange-500/30' : 
+              'bg-destructive/10 border-destructive/30'
+            }`}>
+              <div className="text-muted-foreground text-xs mb-1">Коэффициент запаса</div>
+              <div className="font-mono font-bold text-lg">{safetyFactor.toFixed(2)}</div>
+              <div className="text-xs text-muted-foreground">-</div>
             </div>
           </div>
 
-          <div className="text-xs text-muted-foreground border-t pt-2">
+          <div className="text-xs text-muted-foreground border-t pt-3">
             {safetyFactor >= 1.5 ? (
               <div className="flex items-center gap-2 text-green-600">
                 <Icon name="CheckCircle" size={14} />
-                <span>Безопасный режим работы</span>
+                <span>Безопасный режим работы (Кз ≥ 1.5)</span>
               </div>
             ) : safetyFactor >= 1.2 ? (
               <div className="flex items-center gap-2 text-orange-600">
                 <Icon name="AlertTriangle" size={14} />
-                <span>Ограниченный запас прочности</span>
+                <span>Ограниченный запас прочности (1.2 ≤ Кз < 1.5)</span>
               </div>
             ) : (
               <div className="flex items-center gap-2 text-destructive">
                 <Icon name="XCircle" size={14} />
-                <span>Критическая перегрузка!</span>
+                <span className="font-semibold">КРИТИЧЕСКАЯ ПЕРЕГРУЗКА! (Кз < 1.2)</span>
               </div>
             )}
           </div>

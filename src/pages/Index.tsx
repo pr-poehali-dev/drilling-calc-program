@@ -12,6 +12,8 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import TorqueChart from '@/components/TorqueChart';
 import CleaningChart from '@/components/CleaningChart';
 import LoadChart from '@/components/LoadChart';
+import PressureProfileChart from '@/components/PressureProfileChart';
+import CasingVisualization from '@/components/CasingVisualization';
 import NozzleConfig, { Nozzle } from '@/components/hydraulics/NozzleConfig';
 import HydraulicsTable, { HydraulicsParams } from '@/components/hydraulics/HydraulicsTable';
 import ExcelImport, { WellProfilePoint } from '@/components/wellProfile/ExcelImport';
@@ -1182,11 +1184,36 @@ export default function Index() {
 
               {showCharts && calculations.length > 0 && (
                 <>
+                  {/* Профиль давлений - показываем всегда при наличии гидравлических данных */}
+                  {calculations[0].hydraulics && parseFloat(depth) > 0 && (
+                    <PressureProfileChart
+                      depth={parseFloat(depth)}
+                      mudDensity={parseFloat(mudWeight)}
+                      pressureLossPipe={calculations[0].hydraulics.pressureLossPipe}
+                      pressureLossAnnulus={calculations[0].hydraulics.pressureLossAnnulus}
+                      burst={calculations[0].burst}
+                      collapse={calculations[0].collapse}
+                    />
+                  )}
+
+                  {/* Визуализация обсадной колонны */}
+                  {calculations[0].drilling && (
+                    <CasingVisualization
+                      outerDiameter={calculations[0].outerDiameter}
+                      wallThickness={parseFloat(wallThickness)}
+                      depth={parseFloat(depth)}
+                      mudDensity={parseFloat(mudWeight)}
+                      hookLoad={calculations[0].drilling.hookLoad}
+                      burst={calculations[0].burst}
+                      collapse={calculations[0].collapse}
+                    />
+                  )}
+
                   {calculations[0].drilling && calculations[0].connections && (
                     <div className="grid md:grid-cols-2 gap-6">
                       <TorqueChart
                         currentTorque={calculations[0].drilling.torque}
-                        maxTorque={calculations[0].connections.maxTorqueConnection * 1000}
+                        maxTorque={calculations[0].connections.maxTorqueConnection}
                         depth={parseFloat(depth)}
                       />
                       <LoadChart
